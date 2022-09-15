@@ -361,3 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/H3Randomizer/build/lib
+/H3Randomizer/dist
+config.json
+/H3Randomizer/H3Randomizer_CPP.pyd

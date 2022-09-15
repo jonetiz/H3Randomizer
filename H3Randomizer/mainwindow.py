@@ -1,57 +1,81 @@
-from sre_constants import GROUPREF_UNI_IGNORE
 from tkinter import *
 import os
 from tkinter.scrolledtext import ScrolledText
+import json
 
-class GUI:
-    root = Tk()
-    root.config(bg="#303030")
-    title = "Window Title"
-    dimensions = "400x300"
-    def __init__(self, *args, **kwargs):
-        self.title = kwargs.get('title')
-        self.dimensions = kwargs.get('dimensions')
-        self.root.title(kwargs.get('title'))
-        self.root.geometry = kwargs.get('dimensions')
-        self.root.resizable(kwargs.get('resizable')[0], kwargs.get('resizable')[1])
-    
-class GUI_TextBox:
-    obj: Text
-    initial_state: str
-    def __init__(self, *args, **kwargs):
-        self.obj = Text(kwargs.get('parent').root)
-        self.initial_state = kwargs.get('state')
-        self.obj.config(state=kwargs.get('state'), bg="#202020", fg="#cccccc")
-        self.obj.pack(padx=20,pady=20)
-    def add_text(self, text: str, nl: bool = True):
-        if self.initial_state == "disabled":
-            self.obj.config(state="normal")
-            self.obj.insert(END, f"{text}\n" if nl else f"{text}")
-            self.obj.config(state="disabled")
-        else:
-            self.obj.insert(END, text)
-        self.obj.see("end")
+config_data = {
+    "randomize_weapons": 0,
+    "seed": "haloruns.com"
+}
 
-class GUI_ScrolledTextBox (GUI_TextBox):
-    obj: ScrolledText
-    def __init__(self, *args, **kwargs):
-        self.obj = ScrolledText(kwargs.get('parent').root)
-        self.initial_state = kwargs.get('state')
-        self.obj.config(state=kwargs.get('state'), bg="#202020", fg="#cccccc")
-        self.obj.pack(padx=20,pady=20,expand=True,fill=BOTH,side=LEFT)
-        
-main_window = GUI(title="Halo 3 Randomizer (DEV)", dimensions="640x480", resizable=(False, False))
-main_window_output = GUI_ScrolledTextBox(parent=main_window, state="disabled")
+root = Tk()
+root.config(bg="#000")
+root.title("Halo 3 Randomizer (IN DEVELOPMENT)")
+root.geometry("640x480")
+root.minsize(640,480)
+
+main_window_options_frame = Frame(root, width=640, height=300, background="#202020")
+main_window_options_frame.pack(expand=False, fill=BOTH)
+main_window_output_frame = Frame(root, width=640, height=280, background="#202020")
+main_window_output_frame.pack(expand=True, fill=BOTH)
+main_window_output = ScrolledText(main_window_output_frame, state="disabled", bg="#202020", fg="#cccccc")
+main_window_output.pack(padx=20,pady=20, expand=True, fill=BOTH)
+
+weapon_randomizer_setting = IntVar()
+weapon_randomizer_checkbox = Checkbutton(main_window_options_frame, text="Randomize Weapons?", variable=weapon_randomizer_setting, onvalue=1, offvalue=0, bg="#202020", fg="#cccccc", selectcolor="#202020", activebackground="#202020", activeforeground="#cccccc")
+weapon_randomizer_checkbox.grid(column=0,row=0)
+
+seed_label = Label(main_window_options_frame, text="Seed: ", bg="#202020", fg="#cccccc")
+seed_label.grid(column=1, row=0)
+
+seed_setting = StringVar()
+seed_textbox = Entry(main_window_options_frame, bg="#202020", fg="#cccccc", width=40, state="normal", insertbackground="#cccccc", textvariable=seed_setting)
+seed_textbox.grid(column=2,row=0)
 
 def on_closing():
     print("Main window closed; Shutting down Halo 3 Randomizer.")
+    
+    # Save config on exit
+    with open("config.json", "w+") as f:
+        json.dump(config_data, f)
+    
     os._exit(0)
 
 def frontend_gui():
-    while True:
-        main_window.root.protocol("WM_DELETE_WINDOW", on_closing)
-        main_window.root.mainloop()
+    with open("config.json", "r+") as f:
+        try:
+            json_object = json.load(f)
+        except:
+            json_object = ""
+    
+    try:
+        config_data['randomize_weapons'] = json_object['randomize_weapons']
+        if json_object['randomize_weapons'] != 0:
+            weapon_randomizer_checkbox.select()
+    except:
+        pass
+
+    try:
+        config_data['seed'] = json_object['seed']
+        seed_textbox.insert(0, config_data["seed"])
+    except:
+        pass
+    
+    root.protocol("WM_DELETE_WINDOW", on_closing)
+    root.mainloop()
 
 def console_output(text: str, nl: bool = True):
     print(text)
-    main_window_output.add_text(text, nl)
+    main_window_output.config(state="normal")
+    main_window_output.insert(END, f"{text}\n")
+    main_window_output.config(state="disabled")
+    main_window_output.see("end")
+
+def disable_frame(frame):
+    for child in frame.winfo_children():
+        child.configure(state="disabled")
+
+
+def enable_frame(frame):
+    for child in frame.winfo_children():
+        child.configure(state="normal")
