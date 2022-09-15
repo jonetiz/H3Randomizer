@@ -10,7 +10,7 @@ ATTENTION: This program uses some very exerpimental or "hacky" methods to accomp
 - Halo: MCC for PC (Steam Only Supporter Currently)
 
 ## Usage
-*For self-build instructions, see [Build Instructions](https://github.com/jonetiz/H3Randomizer/README.md#build-instructions) below.*
+*For self-build instructions, see [Build Instructions](https://github.com/jonetiz/H3Randomizer/blob/master/README.md#build-instructions) below.*
 1. Go to [Releases](https://github.com/jonetiz/H3randomizer/releases/)
 2. Download the latest or desired release
 3. Extract files from zip
