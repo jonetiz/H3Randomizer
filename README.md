@@ -7,7 +7,7 @@ Program that randomizes characters and their weapons in Halo 3 for Halo: The Mas
 ATTENTION: This program uses some very exerpimental or "hacky" methods to accomplish it's goals. Please use at your own risk, and know that any project contributors are not responsible for any potential damages. Feel free to go through the source code at your leisure.
 ## Requirements
 - Win64 System (Should be required for MCC anyway)
-- Halo: MCC for PC (Steam Only Supporter Currently)
+- Halo: MCC for PC (Steam only supported currently)
 
 ## Usage
 *For self-build instructions, see [Build Instructions](https://github.com/jonetiz/H3Randomizer/blob/master/README.md#build-instructions) below.*
