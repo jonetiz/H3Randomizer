@@ -5,7 +5,7 @@
     <ProjectGuid>116cd49c-c4f5-4a5d-a441-cd8b5d882b84</ProjectGuid>
     <ProjectHome>
     </ProjectHome>
-    <StartupFile>main.pyw</StartupFile>
+    <StartupFile>main.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -14,6 +14,10 @@
     <RootNamespace>H3Randomizer</RootNamespace>
     <InterpreterId>Global|PythonCore|3.10</InterpreterId>
     <IsWindowsApplication>True</IsWindowsApplication>
+    <LaunchProvider>Standard Python launcher</LaunchProvider>
+    <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
+    <CommandLineArguments>
+    </CommandLineArguments>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -30,7 +34,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="h3randomizer.py" />
-    <Compile Include="main.pyw" />
+    <Compile Include="main.py" />
     <Compile Include="mainwindow.py" />
   </ItemGroup>
   <ItemGroup>

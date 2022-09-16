@@ -1,11 +1,9 @@
 import random
-from sys import dllhandle
 import time
 from datetime import datetime
 import threading
 import pymem.process
 from pymem import Pymem
-from pymem.ptypes import RemotePointer
 import pymem.exception
 from pymem.ressources.structure import MODULEINFO
 
@@ -37,6 +35,8 @@ class Game: # Abstraction for potential future randomizers
     ALLOWED_WEAPON_INDICES = {}
     ALLOWED_WEAPONS_BY_CLASS = {}
     DISQUALIFIED_SQUADS = {} # Squads that should not be randomized
+    COVENANT_INDICES = {}
+    COVENANT_ONLY = {} # Squads that should not be randomized to anything other than covenant *** NEED TO FIND FIX FOR VEHICLE_LOAD_MAGIC ON UNSC/FLOOD
 
     known_randomizations = [] # Randomizations that have already occured in this randomizer; ie. do not reroll when restart mission or revert checkpoint. [[SQ, SQ_IDX], SAVED]
     known_weapon_randomizations = [] # Weapon randomizations that have already occured in this randomizer; [[SQ, UID], SAVED]
@@ -276,8 +276,8 @@ class Halo3 (Game): # Handle hooking and process stuff
 
         # Ideally, this stuff won't need to be hard coded once I can get tag strings
         self.ALLOWED_INDICES = {
-            "010_jungle": [0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16]
-            #"020_base": [2, 3, 4, 5, 6, 9, 10, 11, 13, 17, 19] # TODO: unrandomizable in hangar and drone fight
+            "010_jungle":   [0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16],
+            "020_base":     [2, 3, 4, 6, 9, 10, 11, 13, 17] # 5 = drone, can't be used due to too many things, can't do marines either for now
         }
         self.ALLOWED_INDICES_BY_CLASS = { # level_name : { character_datum : weapon_class }
             "010_jungle": {
@@ -296,6 +296,23 @@ class Halo3 (Game): # Handle hooking and process stuff
                             0x93EA3258: "jackal_s",  # jackal_sniper
                             0x93EC325A: "brute",     # brute_bodyguard_no_grenade
                             0x8DA22C10: "brute"      # brute
+                          },
+            "020_base":   { # So many issues here lol
+                            #0x86A21968: "marine",    # marine
+                            #0x8BE72A56: "marine",    # marine_wounded
+                            0x8BE92A58: "brute",     # brute
+                            0x8E8A2CF9: "grunt",     # grunt
+                            0x910F2F7E: "jackal",    # jackal
+                            #0x91762FE5: "drone",     # bugger
+                            0x91862FF5: "brute",     # brute_jumppack
+                            #0x91BF302E: "marine",    # marine_sgt
+                            #0x93AB321A: "marine",    # marine_female
+                            0x96A73516: "brute",     # brute_captain
+                            0x96AB351A: "brute_cc",  # brute_chieftain_weapon
+                            0x974335B2: "brute_hc",  # brute_chieftain_armor
+                            0x9A4538B4: "jackal_s",  # jackal_sniper
+                            0x9AF33962: "brute",     # brute_bodyguard
+                            #0x9AF73966: "hunter"     # hunter
                           }
         }
         self.ALLOWED_WEAPON_INDICES = { # level_name : { weapon : [weapon_datum, bsp_instantiated] }
@@ -319,6 +336,26 @@ class Halo3 (Game): # Handle hooking and process stuff
                             "rocket_launcher": [0xF8BF1749, 5631], # Rocket Launcher only loaded after downed pelican
                             "plasma_rifle":    [0xF4891313, 0], # Plasma Rifle
                             "shotgun":         [0xF86A16F4, 5631] # Shotgun only loaded after downed pelican 5631, 6143 
+                          },
+            "020_base": {
+                            "plasma_cannon":   [0xF1260FB0, 0], # Plasma Cannon
+                            "battle_rifle":    [0xE6C1054B, 0], # BR
+                            "plasma_pistol":   [0xF46A12F4, 0], # PP
+                            "needler":         [0xF3EB1275, 0], # Needler
+                            "magnum":          [0xE9A1082B, 0], # Magnum
+                            "spiker":          [0xF39E1228, 0], # Spiker
+                            "brute_shot":      [0xF53713C1, 0], # Brute Shot
+                            "carbine":         [0xF57513FF, 0], # Carbine
+                            "gravity_hammer":  [0xF5C0144A, 831], # Gravity Hammer only after Chieftain
+                            "beam_rifle":      [0xF65414DE, 1023], # Beam Rifle only after Hangar 2
+                            "assault_rifle":   [0xE5C2044C, 0], # Assault Rifle
+                            "energy_sword":    [0xF6EC1576, 0], # Energy Sword
+                            "smg":             [0xE8B0073A, 0], # SMG
+                            "flak_cannon":     [0xF69D1527, 1023], # FRG
+                            "spartan_laser":   [0xF8D91763, 0], # Spartan Laser
+                            "plasma_rifle":    [0xF5E2146C, 0], # Plasma Rifle
+                            "shotgun":         [0xE72305AD, 0], # Shotgun
+                          "machinegun_turret": [0xE2BD0147, 0], # Machine Gun
                           }
         }
         self.ALLOWED_WEAPONS_BY_CLASS = { # "archetype": [[list_regular],[list_valid_randoms]]
@@ -339,12 +376,15 @@ class Halo3 (Game): # Handle hooking and process stuff
 
             "brute_hc": [["gravity_hammer"],
                          ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun"]],
-
-            "drone":    [["plasma_pistol", "needler", "plasma_rifle"],
-                         ["plasma_pistol", "needler", "magnum", "spiker", "smg", "excavator", "plasma_rifle"]],
+            
+            "brute_cc": [["flak_cannon", "plasma_cannon"],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun", "plasma_cannon", "machinegun_turret"]],
 
             "drone":    [["plasma_pistol", "needler"],
-                         ["plasma_pistol", "needler", "magnum", "spiker", "smg", "excavator"]],
+                         ["plasma_pistol", "needler", "magnum", "spiker", "smg", "excavator", "plasma_rifle"]],
+
+            "hunter":    [["hunter_particle_cannon"],
+                         ["hunter_particle_cannon"]],
 
             "elite":    [["needler", "plasma_pistol", "plasma_rifle", "carbine", "flak_cannon", "energy_sword", "beam_rifle", "spartan_laser"],
                          ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "energy_sword", "sniper_rifle", "beam_rifle", "shotgun", "spartan_laser", "plasma_cannon"]],
@@ -353,7 +393,7 @@ class Halo3 (Game): # Handle hooking and process stuff
                          ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "sniper_rifle", "flak_cannon", "rocket_launcher", "spartan_laser"]]
            
         }
-        self.DISQUALIFIED_SQUADS = { 
+        self.DISQUALIFIED_SQUADS = {
             "010_jungle":   [
                                 [0x7FF4F5A065D4, 0],
                                 [0x7FF4F5A06B94, 0],
@@ -366,8 +406,43 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [0x7FF4F5A19E0C, 0],
                                 [0x7FF4F5A1A004, 0],
                                 [0x7FF4F5A1A1FC, 0],
+                            ],
+            "020_base":     [
+                                [0x7FF4EDFEFCD0, 0],
+                                [0x7FF4EDFF0E60, 0],
+                                [0x7FF4EE007290, 0],
+                                [0x7FF4EE005130, 0],
+                                [0x7FF4EE0042F8, 0],
+                                [0x7FF4EE0042F8, 1],
+                                [0x7FF4EE0042F8, 2]
                             ]
-            }
+        }
+        self.COVENANT_INDICES = {
+            "020_base": [2, 3, 4, 6, 9, 10, 11, 13, 17, 19]
+        }
+        self.COVENANT_ONLY = { # Define covenant-only squads
+            "020_base":     [
+                                # 1st Phantoms
+                                0x7FF4EDFF1278,
+                                0x7FF4EDFF12D8,
+                                0x7FF4EDFF1588,
+                                0x7FF4EE001FB0,
+                                0x7FF4EE002010,
+                                # Leg Phantom?
+                                0x7FF4EDFF1FB8,
+                                0x7FF4EDFF2018,
+                                0x7FF4EDFF2188,
+                                # 3rd Phantom
+                                0x7FF4EDFF19F8,
+                                0x7FF4EDFF1A58,
+                                0x7FF4EDFF1C50,
+                                0x7FF4EDFF1CB0,
+                                0x7FF4EE007510,
+                                0x7FF4EE008F80,
+                                0x7FF4EE008FE0,
+                                0x7FF4EE008D00
+                            ]
+        }
 
         super().__init__(exe, dll)
 
@@ -380,7 +455,7 @@ class Halo3 (Game): # Handle hooking and process stuff
     def get_allowed_weapon_palette_indices(self):
         return self.ALLOWED_WEAPON_INDICES[self.current_level]
 
-    def index_character_palette(self, address):
+    def index_character_palette(self, address): # Unused for now
         cur_index = 0
         new_palette = []
         while (self.p.read_string(address + (cur_index * 16), 4) == "rahc"):
@@ -396,11 +471,16 @@ class Halo3 (Game): # Handle hooking and process stuff
         if [ctx['R9'], ctx['Rbx']] not in self.DISQUALIFIED_SQUADS[self.current_level]: # Don't randomize if it's a DQ'd index of/or DQ'd squad
 
             if [ctx['R9'], ctx['Rbx']] not in (i[0] for i in self.known_randomizations):
-                if self.character_palette[0] != self.current_level: # Index character palette for the first time
-                    self.index_character_palette(ctx['R8'])
+                #if self.character_palette[0] != self.current_level: # Index character palette for the first time
+                #    self.index_character_palette(ctx['R8'])
                 rng = -1
                 level = self.current_level
-                allowed = self.get_allowed_palette_indices()
+
+                if ctx['R9'] not in self.COVENANT_ONLY[self.current_level]: # Ugly workaround to force covenant only
+                    allowed = self.get_allowed_palette_indices()
+                else:
+                    allowed = self.COVENANT_INDICES[self.current_level]
+
                 if level in self.ALLOWED_INDICES.keys(): # only randomize if we've defined the level
                     if ctx['Rax'] in allowed: # Only randomize if we allow it
                         rng = random.choice(allowed) # Select a random value from ALLOWED_INDICES
@@ -440,8 +520,10 @@ class Halo3 (Game): # Handle hooking and process stuff
                 rng = random.choice(allowed_weapons)
                 try:
                     choice = allowed_weapon_indices[rng]
-                    if choice[1] > self.current_bsp:
+                    if choice[1] > self.current_bsp: # If the choice is after designated BSP
                         rng = -1
+                        if len(allowed_weapons_by_class_normal) < 2: # if there are no other options, return the map default
+                            return ctx
                         continue
                     else:
                         break

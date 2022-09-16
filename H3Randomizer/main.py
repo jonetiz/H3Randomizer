@@ -13,5 +13,4 @@ def main(process: Pymem = None):
 if __name__ == "__main__":
     thread_backend = threading.Thread(target=main)
     thread_backend.start()
-    #main()
     frontend_gui()

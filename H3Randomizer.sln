@@ -12,9 +12,6 @@ Global
 		Debug|Any CPU = Debug|Any CPU
 		Debug|x64 = Debug|x64
 		Debug|x86 = Debug|x86
-		Debug-ConsoleOnly|Any CPU = Debug-ConsoleOnly|Any CPU
-		Debug-ConsoleOnly|x64 = Debug-ConsoleOnly|x64
-		Debug-ConsoleOnly|x86 = Debug-ConsoleOnly|x86
 		Release|Any CPU = Release|Any CPU
 		Release|x64 = Release|x64
 		Release|x86 = Release|x86
@@ -23,9 +20,6 @@ Global
 		{116CD49C-C4F5-4A5D-A441-CD8B5D882B84}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{116CD49C-C4F5-4A5D-A441-CD8B5D882B84}.Debug|x64.ActiveCfg = Debug|Any CPU
 		{116CD49C-C4F5-4A5D-A441-CD8B5D882B84}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{116CD49C-C4F5-4A5D-A441-CD8B5D882B84}.Debug-ConsoleOnly|Any CPU.ActiveCfg = Debug-ConsoleOnly|Any CPU
-		{116CD49C-C4F5-4A5D-A441-CD8B5D882B84}.Debug-ConsoleOnly|x64.ActiveCfg = Debug-ConsoleOnly|Any CPU
-		{116CD49C-C4F5-4A5D-A441-CD8B5D882B84}.Debug-ConsoleOnly|x86.ActiveCfg = Debug-ConsoleOnly|Any CPU
 		{116CD49C-C4F5-4A5D-A441-CD8B5D882B84}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{116CD49C-C4F5-4A5D-A441-CD8B5D882B84}.Release|x64.ActiveCfg = Release|Any CPU
 		{116CD49C-C4F5-4A5D-A441-CD8B5D882B84}.Release|x86.ActiveCfg = Release|Any CPU
@@ -35,12 +29,6 @@ Global
 		{CDC21F21-25C1-422C-A720-A5F25D904A40}.Debug|x64.Build.0 = Debug|x64
 		{CDC21F21-25C1-422C-A720-A5F25D904A40}.Debug|x86.ActiveCfg = Debug|Win32
 		{CDC21F21-25C1-422C-A720-A5F25D904A40}.Debug|x86.Build.0 = Debug|Win32
-		{CDC21F21-25C1-422C-A720-A5F25D904A40}.Debug-ConsoleOnly|Any CPU.ActiveCfg = Debug-ConsoleOnly|x64
-		{CDC21F21-25C1-422C-A720-A5F25D904A40}.Debug-ConsoleOnly|Any CPU.Build.0 = Debug-ConsoleOnly|x64
-		{CDC21F21-25C1-422C-A720-A5F25D904A40}.Debug-ConsoleOnly|x64.ActiveCfg = Debug-ConsoleOnly|x64
-		{CDC21F21-25C1-422C-A720-A5F25D904A40}.Debug-ConsoleOnly|x64.Build.0 = Debug-ConsoleOnly|x64
-		{CDC21F21-25C1-422C-A720-A5F25D904A40}.Debug-ConsoleOnly|x86.ActiveCfg = Debug-ConsoleOnly|Win32
-		{CDC21F21-25C1-422C-A720-A5F25D904A40}.Debug-ConsoleOnly|x86.Build.0 = Debug-ConsoleOnly|Win32
 		{CDC21F21-25C1-422C-A720-A5F25D904A40}.Release|Any CPU.ActiveCfg = Release|x64
 		{CDC21F21-25C1-422C-A720-A5F25D904A40}.Release|Any CPU.Build.0 = Release|x64
 		{CDC21F21-25C1-422C-A720-A5F25D904A40}.Release|x64.ActiveCfg = Release|x64
