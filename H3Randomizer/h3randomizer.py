@@ -68,7 +68,7 @@ class Game: # Abstraction for potential future randomizers
     def update_current_level(self):
         pointer = self.get_pointer(self.game_dll, self.curlevel_offsets)
         try:
-            curlevel = self.p.read_string(pointer, 10)
+            curlevel = self.p.read_string(pointer, 16)
             self.current_level = curlevel
         except:
             pass
@@ -277,7 +277,8 @@ class Halo3 (Game): # Handle hooking and process stuff
         # Ideally, this stuff won't need to be hard coded once I can get tag strings
         self.ALLOWED_INDICES = {
             "010_jungle":   [0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16],
-            "020_base":     [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 13, 17] # 5 = drone, can't be used due to too many things
+            "020_base":     [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 13, 17], # 5 = drone, can't be used due to too many things
+            "030_outskirts":[0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]
         }
         self.ALLOWED_INDICES_BY_CLASS = { # level_name : { character_datum : weapon_class }
             "010_jungle": {
@@ -313,7 +314,22 @@ class Halo3 (Game): # Handle hooking and process stuff
                             0x9A4538B4: "jackal_s",  # jackal_sniper
                             0x9AF33962: "brute",     # brute_bodyguard
                             #0x9AF73966: "hunter"     # hunter
-                          }
+                          },
+            "030_outskirts": {
+                            0x82FC1A28: "brute",     # brute
+                            0x84EA2359: "grunt",     # grunt
+                            0x876F25DE: "marine",    # marine
+                            0x8CB52B24: "jackal",    # jackal
+                            0x82FE1A2A: "brute",     # brute_major
+                            0x8D1D2B8C: "marine",    # marine_female
+                            0x902B2E9A: "marine",    # marine_sgt
+                            0x92173086: "brute",     # brute_captain
+                            0x921B308A: "grunt_h",   # grunt_heavy
+                            0x921C308B: "jackal_s",  # jackal_sniper
+                            0x921E308D: "brute",     # brute_jumppack
+                            0x922E309D: "brute_cc",  # brute_chieftain_weapon
+                            0x92C63135: "drone",     # bugger
+            }
         }
         self.ALLOWED_WEAPON_INDICES = { # level_name : { weapon : [weapon_datum, bsp_instantiated] }
             "010_jungle": {
@@ -356,14 +372,31 @@ class Halo3 (Game): # Handle hooking and process stuff
                             "plasma_rifle":    [0xF5E2146C, 0], # Plasma Rifle
                             "shotgun":         [0xE72305AD, 0], # Shotgun
                           "machinegun_turret": [0xE2BD0147, 0], # Machine Gun
+                          },
+            "030_outskirts": {
+                            #"magnum":          [0xEA83090D, 0], # Magnum doesn't show up
+                            #"needler":         [0xF93917C3, 0], # Needler doesn't show up
+                            "plasma_pistol":   [0xF6B0153A, 0], # Plasma Pistol
+                            "assault_rifle":   [0xF51A13A4, 0], # Assault Rifle
+                            "battle_rifle":    [0xF56F13F9, 0], # Battle Rifle
+                            "beam_rifle":      [0xF893171D, 0], # Beam Rifle
+                            "carbine":         [0xF7BE1648, 0], # Carbine
+                            "plasma_rifle":    [0xF80C1696, 0], # Plasma Rifle
+                            "shotgun":         [0xF8E0176A, 0], # Shotgun
+                            "sniper_rifle":    [0xF65414DE, 0], # Sniper Rifle
+                            "spiker":          [0xF5BB1445, 15], # Spiker
+                            "flak_cannon":     [0xF85A16E4, 15], # FRG
+                            "brute_shot":      [0xF77F1609, 31], # Brute Shot
+                            "plasma_cannon":   [0xF300118A, 0], # Plasma Cannon
+                          "machinegun_turret": [0xF36511EF, 0], # Machine Gun
                           }
         }
         self.ALLOWED_WEAPONS_BY_CLASS = { # "archetype": [[list_regular],[list_valid_randoms]]
             "grunt":    [["plasma_pistol", "needler"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "flak_cannon"]],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "brute_shot"]],
 
             "grunt_h":  [["plasma_pistol", "needler", "spiker", "flak_cannon", "excavator"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "flak_cannon"]],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "brute_shot"]],
 
             "jackal":   [["plasma_pistol", "needler"], 
                          ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "beam_rifle", "plasma_rifle"]],
