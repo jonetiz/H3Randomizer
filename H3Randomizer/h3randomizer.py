@@ -35,8 +35,6 @@ class Game: # Abstraction for potential future randomizers
     ALLOWED_WEAPON_INDICES = {}
     ALLOWED_WEAPONS_BY_CLASS = {}
     DISQUALIFIED_SQUADS = {} # Squads that should not be randomized
-    COVENANT_INDICES = {}
-    COVENANT_ONLY = {} # Squads that should not be randomized to anything other than covenant *** NEED TO FIND FIX FOR VEHICLE_LOAD_MAGIC ON UNSC/FLOOD
 
     known_randomizations = [] # Randomizations that have already occured in this randomizer; ie. do not reroll when restart mission or revert checkpoint. [[SQ, SQ_IDX], SAVED]
     known_weapon_randomizations = [] # Weapon randomizations that have already occured in this randomizer; [[SQ, UID], SAVED]
@@ -250,10 +248,12 @@ class Game: # Abstraction for potential future randomizers
         console_output(f"Created randomizer! Seed: {seed_setting.get()}")
         spawn_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.enemyspawn_offsets), self.randomize_enemy)
         randomizer_obj_cpp.set_breakpoint(0, spawn_breakpoint) # Set breakpoint a H3Randomizer.breakpoints[0] in Dr0 register
-        console_output("Set enemy spawn breakpoint!")
+        console_output("Set character spawn breakpoint!")
         weapon_randomizer_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.enemyspawn_weapon_offsets), self.randomize_enemy_weapons)
         randomizer_obj_cpp.set_breakpoint(1, weapon_randomizer_breakpoint) # Set breakpoint a H3Randomizer.breakpoints[0] in Dr0 register
-        console_output("Set enemy weapon randomizer!")
+        console_output("Set character spawn weapon breakpoint!")
+        self.p.write_bytes(self.get_pointer(self.game_dll, [0x569092]), b'\x90\x90\x90\x90\x90\x90', 6) # enter_vehicle_immediate workaround
+        self.p.write_bytes(self.get_pointer(self.game_dll, [0x39980C]), b'\x90\x90', 2) # vehicle_load_magic workaround
         thread_debug_handling.start()
 
     def main_loop(self, randomizer_obj_cpp, thread_debug_handling):
@@ -277,7 +277,7 @@ class Halo3 (Game): # Handle hooking and process stuff
         # Ideally, this stuff won't need to be hard coded once I can get tag strings
         self.ALLOWED_INDICES = {
             "010_jungle":   [0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16],
-            "020_base":     [2, 3, 4, 6, 9, 10, 11, 13, 17] # 5 = drone, can't be used due to too many things, can't do marines either for now
+            "020_base":     [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 13, 17] # 5 = drone, can't be used due to too many things
         }
         self.ALLOWED_INDICES_BY_CLASS = { # level_name : { character_datum : weapon_class }
             "010_jungle": {
@@ -298,15 +298,15 @@ class Halo3 (Game): # Handle hooking and process stuff
                             0x8DA22C10: "brute"      # brute
                           },
             "020_base":   { # So many issues here lol
-                            #0x86A21968: "marine",    # marine
-                            #0x8BE72A56: "marine",    # marine_wounded
+                            0x86A21968: "marine",    # marine
+                            0x8BE72A56: "marine",    # marine_wounded
                             0x8BE92A58: "brute",     # brute
                             0x8E8A2CF9: "grunt",     # grunt
                             0x910F2F7E: "jackal",    # jackal
                             #0x91762FE5: "drone",     # bugger
                             0x91862FF5: "brute",     # brute_jumppack
-                            #0x91BF302E: "marine",    # marine_sgt
-                            #0x93AB321A: "marine",    # marine_female
+                            0x91BF302E: "marine",    # marine_sgt
+                            0x93AB321A: "marine",    # marine_female
                             0x96A73516: "brute",     # brute_captain
                             0x96AB351A: "brute_cc",  # brute_chieftain_weapon
                             0x974335B2: "brute_hc",  # brute_chieftain_armor
@@ -393,56 +393,6 @@ class Halo3 (Game): # Handle hooking and process stuff
                          ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "sniper_rifle", "flak_cannon", "rocket_launcher", "spartan_laser"]]
            
         }
-        self.DISQUALIFIED_SQUADS = {
-            "010_jungle":   [
-                                [0x7FF4F5A065D4, 0],
-                                [0x7FF4F5A06B94, 0],
-                                [0x7FF4F5A067CC, 0],
-                                [0x7FF4F5A06AAC, 0],
-                                [0x7FF4F5A0E8BC, 0],
-                                [0x7FF4F5A0E8BC, 1],
-                                [0x7FF4F5A15EEC, 0],
-                                [0x7FF4F5A19C14, 0],
-                                [0x7FF4F5A19E0C, 0],
-                                [0x7FF4F5A1A004, 0],
-                                [0x7FF4F5A1A1FC, 0],
-                            ],
-            "020_base":     [
-                                [0x7FF4EDFEFCD0, 0],
-                                [0x7FF4EDFF0E60, 0],
-                                [0x7FF4EE007290, 0],
-                                [0x7FF4EE005130, 0],
-                                [0x7FF4EE0042F8, 0],
-                                [0x7FF4EE0042F8, 1],
-                                [0x7FF4EE0042F8, 2]
-                            ]
-        }
-        self.COVENANT_INDICES = {
-            "020_base": [2, 3, 4, 6, 9, 10, 11, 13, 17, 19]
-        }
-        self.COVENANT_ONLY = { # Define covenant-only squads
-            "020_base":     [
-                                # 1st Phantoms
-                                0x7FF4EDFF1278,
-                                0x7FF4EDFF12D8,
-                                0x7FF4EDFF1588,
-                                0x7FF4EE001FB0,
-                                0x7FF4EE002010,
-                                # Leg Phantom?
-                                0x7FF4EDFF1FB8,
-                                0x7FF4EDFF2018,
-                                0x7FF4EDFF2188,
-                                # 3rd Phantom
-                                0x7FF4EDFF19F8,
-                                0x7FF4EDFF1A58,
-                                0x7FF4EDFF1C50,
-                                0x7FF4EDFF1CB0,
-                                0x7FF4EE007510,
-                                0x7FF4EE008F80,
-                                0x7FF4EE008FE0,
-                                0x7FF4EE008D00
-                            ]
-        }
 
         super().__init__(exe, dll)
 
@@ -467,28 +417,23 @@ class Halo3 (Game): # Handle hooking and process stuff
         self.character_palette[1] = new_palette
 
 
-    def randomize_enemy(self, ctx): # Rax = Character Palette Index, Rbx/R15 = Squad Unit Index, R8 = Character Palette, R9/R14 = Base Squad
-        if [ctx['R9'], ctx['Rbx']] not in self.DISQUALIFIED_SQUADS[self.current_level]: # Don't randomize if it's a DQ'd index of/or DQ'd squad
+    def randomize_enemy(self, ctx): # Rax = Character Palette Index, Rbx/R15 = Squad Unit Index, R8 = Character Palette, R9/R14 = Base Squad Address (not consistent)
+        if [ctx['R9'], ctx['Rbx']] not in (i[0] for i in self.known_randomizations):
+            #if self.character_palette[0] != self.current_level: # Index character palette for the first time
+            #    self.index_character_palette(ctx['R8'])
+            rng = -1
+            level = self.current_level
+                
+            allowed = self.get_allowed_palette_indices()
 
-            if [ctx['R9'], ctx['Rbx']] not in (i[0] for i in self.known_randomizations):
-                #if self.character_palette[0] != self.current_level: # Index character palette for the first time
-                #    self.index_character_palette(ctx['R8'])
-                rng = -1
-                level = self.current_level
-
-                if ctx['R9'] not in self.COVENANT_ONLY[self.current_level]: # Ugly workaround to force covenant only
-                    allowed = self.get_allowed_palette_indices()
-                else:
-                    allowed = self.COVENANT_INDICES[self.current_level]
-
-                if level in self.ALLOWED_INDICES.keys(): # only randomize if we've defined the level
-                    if ctx['Rax'] in allowed: # Only randomize if we allow it
-                        rng = random.choice(allowed) # Select a random value from ALLOWED_INDICES
-                        ctx['Rax'] = rng
-                        self.known_randomizations.append([[ctx['R9'], ctx['Rbx']], ctx['Rax']])
-            else:
-                known = [i for i in self.known_randomizations if i[0] == [ctx['R9'], ctx['Rbx']]]
-                ctx['Rax'] = known[0][1]
+            if level in self.ALLOWED_INDICES.keys(): # only randomize if we've defined the level
+                if ctx['Rax'] in allowed: # Only randomize if we allow it
+                    rng = random.choice(allowed) # Select a random value from ALLOWED_INDICES
+                    ctx['Rax'] = rng
+                    self.known_randomizations.append([[ctx['R9'], ctx['Rbx']], ctx['Rax']])
+        else:
+            known = [i for i in self.known_randomizations if i[0] == [ctx['R9'], ctx['Rbx']]]
+            ctx['Rax'] = known[0][1]
 
         return ctx # Must return ctx no matter what
 
