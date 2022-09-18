@@ -21,20 +21,21 @@ class Game: # Abstraction for potential future randomizers
     current_level: str = None
     current_bsp: int = 0
 
-    character_palette = ["", []] # Indexed at first randomize_enemy event per level. Structure is [level, [palette_offsets]]
+    character_palette = ["", []] # Indexed at first randomize_char event per level. Structure is [level, [palette_offsets]]
 
     # TODO: Make these json and autoupdate
-    enemyspawn_offsets = []
+    charspawn_offsets = []
+    charweapon_offsets = []
     curlevel_offsets = []
     curbsp_offsets = []
+    string_dictionary_offsets = []
+    special_offsets = [] # Multiple special offsets that are game-specific
     
     seed = 0 # this way we don't lose the original seed value for when game restarts or whatever
 
-    ALLOWED_INDICES = {} # Allowed character palette indices
-    ALLOWED_INDICES_BY_CLASS = {} # Character datum mapped to weapon class
-    ALLOWED_WEAPON_INDICES = {}
-    ALLOWED_WEAPONS_BY_CLASS = {}
-    DISQUALIFIED_SQUADS = {} # Squads that should not be randomized
+    ALLOWED_CHARACTERS = {} # Allowed character datum values
+    ALLOWED_WEAPONS = {}
+    ALLOWED_WEAPONS_BY_CHARACTER = {}
 
     known_randomizations = [] # Randomizations that have already occured in this randomizer; ie. do not reroll when restart mission or revert checkpoint. [[SQ, SQ_IDX], SAVED]
     known_weapon_randomizations = [] # Weapon randomizations that have already occured in this randomizer; [[SQ, UID], SAVED]
@@ -44,8 +45,27 @@ class Game: # Abstraction for potential future randomizers
         self.exe_name = exe
         self.dll_name = dll
         self.hooking_loop()
+    
+    def get_tag_string(self, datum, only_last: bool = True) -> str:    
+        '''
+        Returns the string of a given tag datum.
+        '''
+        i = datum % 0x10000     # Get the lower 4 bits of the tag datum
+        i *= 8                  # Multiply by 8 (length of each string table entry)
+        dict_base = self.get_pointer(self.game_dll, self.string_dictionary_offsets)
+        ptr = self.p.read_ulonglong(dict_base + i)
+        
+        out = self.p.read_string(ptr, 255)
+
+        if only_last:
+            return out.split("\\")[-1]
+
+        return out # Read until string terminator or 255 bytes
 
     def get_pointer(self, module: MODULEINFO, offsets: list = [0]):
+        '''
+        Returns a pointer given a module (DLL) and list of offsets.
+        '''
         base_offset = 0
 
         base_offset: int = 0 # Initialize as 0 just in case
@@ -66,18 +86,26 @@ class Game: # Abstraction for potential future randomizers
 
 
     def update_current_level(self):
+        '''
+        Updates the current level variable.
+        '''
         pointer = self.get_pointer(self.game_dll, self.curlevel_offsets)
         try:
             curlevel = self.p.read_string(pointer, 16)
             self.current_level = curlevel
+            return curlevel
         except:
             pass
         
-    def update_current_bsp(self):
+    def update_current_bsp(self): # Potential todo: change this to zones for more accuracy
+        '''
+        Updates the current bsp variable.
+        '''
         pointer = self.get_pointer(self.game_dll, self.curbsp_offsets)
         try:
             curbsp = self.p.read_int(pointer)
             self.current_bsp = curbsp
+            return curbsp
         except:
             pass
 
@@ -185,7 +213,7 @@ class Game: # Abstraction for potential future randomizers
 
                 self.update_current_level()
                 self.update_current_bsp()
-                if self.current_level in self.ALLOWED_INDICES.keys(): # Check current_level if we're currently on a randomizable level
+                if self.current_level in self.ALLOWED_CHARACTERS.keys(): # Check current_level if we're currently on a randomizable level
                     waiting_for_game_msg = True
                     if in_game_msg:
                         console_output(f"Valid level detected ({self.current_level})")
@@ -233,10 +261,10 @@ class Game: # Abstraction for potential future randomizers
                 time.sleep(5) # Wait 5 seconds to try to prevent cases where it will hook again right as app closes
                 self.hooking_loop()
 
-    def randomize_enemy(self, ctx): # This needs to be delegated to subclass
+    def randomize_char(self, ctx): # This needs to be delegated to subclass
         return ctx
 
-    def randomize_enemy_weapons(self, ctx): # This needs to be delegated to subclass
+    def randomize_char_weapon(self, ctx): # This needs to be delegated to subclass
         return ctx
 
     def initial_loop(self, randomizer_obj_cpp, thread_debug_handling):
@@ -246,14 +274,12 @@ class Game: # Abstraction for potential future randomizers
 
         self.cpp_accessor.create_randomizer(self.p.process_id)
         console_output(f"Created randomizer! Seed: {seed_setting.get()}")
-        spawn_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.enemyspawn_offsets), self.randomize_enemy)
+        spawn_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.charspawn_offsets), self.randomize_char)
         randomizer_obj_cpp.set_breakpoint(0, spawn_breakpoint) # Set breakpoint a H3Randomizer.breakpoints[0] in Dr0 register
         console_output("Set character spawn breakpoint!")
-        weapon_randomizer_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.enemyspawn_weapon_offsets), self.randomize_enemy_weapons)
+        weapon_randomizer_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.charweapon_offsets), self.randomize_char_weapon)
         randomizer_obj_cpp.set_breakpoint(1, weapon_randomizer_breakpoint) # Set breakpoint a H3Randomizer.breakpoints[0] in Dr0 register
         console_output("Set character spawn weapon breakpoint!")
-        self.p.write_bytes(self.get_pointer(self.game_dll, [0x569092]), b'\x90\x90\x90\x90\x90\x90', 6) # enter_vehicle_immediate workaround
-        self.p.write_bytes(self.get_pointer(self.game_dll, [0x39980C]), b'\x90\x90', 2) # vehicle_load_magic workaround
         thread_debug_handling.start()
 
     def main_loop(self, randomizer_obj_cpp, thread_debug_handling):
@@ -269,51 +295,75 @@ class Halo3 (Game): # Handle hooking and process stuff
     
     def __init__(self, exe, dll):
         self.cpp_accessor = H3Randomizer_CPP
-        self.enemyspawn_offsets = [0x55C2D9]
-        self.enemyspawn_weapon_offsets = [0x55331F]
+        self.charspawn_offsets = [0x55C2E1]
+        self.charweapon_offsets = [0x55331F]
         self.curlevel_offsets = [0x1EABB78]
         self.curbsp_offsets = [0xA41D20, 0x2C]
+        self.string_dictionary_offsets = [0xA41CF8, 0x820000] # For future reference: obtained by finding serialized string dictionary and finding pointer to the base.
+        self.special_offsets = [[0x1C37288],[0xA3F5B8]] # Scenario Mem Pointer, Mem Pointer Table
 
-        # Ideally, this stuff won't need to be hard coded once I can get tag strings
-        self.ALLOWED_INDICES = {
-            "010_jungle":   [0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16],
-            "020_base":     [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 13, 17], # 5 = drone, can't be used due to too many things
-            "030_outskirts":[0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]
-        }
-        self.ALLOWED_INDICES_BY_CLASS = { # level_name : { character_datum : weapon_class }
+
+        self.ALLOWED_CHARACTERS = { # level_name : { character_datum : [weapon_class, bsp_instantiated] }
             "010_jungle": {
-                            0xFE6F146E: "marine",    # marine
-                            0x84992307: "marine",    # marine_female
-                            0x87A92617: "grunt",     # grunt_major
-                            0x87AA2618: "grunt",     # grunt
-                            0x8AC82936: "grunt_h",   # grunt_heavy
-                            0x8AC92937: "jackal",    # jackal
-                            0x8B072975: "jackal",    # jackal_major
-                            0x8B31299F: "marine",    # marine_sgt
-                            0x8AC72935: "grunt",     # grunt_ultra
-                            0x8DA02C0E: "brute",     # brute_captain_no_grenade
-                            0x90502EBE: "brute",     # brute_captain_major_no_grenade
-                            0x90512EBF: "brute_hc",  # brute_chieftain_armor_no_grenade
-                            0x93EA3258: "jackal_s",  # jackal_sniper
-                            0x93EC325A: "brute",     # brute_bodyguard_no_grenade
-                            0x8DA22C10: "brute"      # brute
+                            0x8DA22C10: ["brute", 0],     # brute
+                            0x93ED325B: ["brute", 0],     # brute_bodyguard
+                            0x8DA12C0F: ["brute", 0],     # brute_captain
+                            0x904E2EBC: ["brute", 0],     # brute_captain_major
+                            0x904F2EBD: ["brute", 0],     # brute_captain_ultra
+                            0x90522EC0: ["brute_hc", 0],  # brute_chieftain_armor
+                            0x8E612CCF: ["brute", 0],     # brute_major
+                            0x8E622CD0: ["brute", 0],     # brute_ultra
+                            
+                            # 0x90EA2F58: ["elite", 0],     # dervish
+
+                            0x90EB2F59: ["elite", 0],     # elite
+                            0x911E2F8C: ["elite", 0],     # elite_major
+
+                            0x87AA2618: ["grunt", 0],     # grunt
+                            0x8AC82936: ["grunt_h", 0],   # grunt_heavy
+                            0x87A92617: ["grunt", 0],     # grunt_major
+                            0x8AC72935: ["grunt", 0],     # grunt_ultra
+
+                            0x8AC92937: ["jackal", 4127],    # jackal
+                            0x8B072975: ["jackal", 4127],    # jackal_major
+                            0x93EA3258: ["jackal_s", 4127],  # jackal_sniper
+
+                            0xFE6F146E: ["marine", 0],    # marine
+                            0x84992307: ["marine", 0],    # marine_female
+                            # 0x8D1D2B8B: ["marine", 0],    # marine_johnson
+                            0x8B31299F: ["marine", 0],    # marine_sgt
                           },
-            "020_base":   { # So many issues here lol
-                            0x86A21968: "marine",    # marine
-                            0x8BE72A56: "marine",    # marine_wounded
-                            0x8BE92A58: "brute",     # brute
-                            0x8E8A2CF9: "grunt",     # grunt
-                            0x910F2F7E: "jackal",    # jackal
-                            #0x91762FE5: "drone",     # bugger
-                            0x91862FF5: "brute",     # brute_jumppack
-                            0x91BF302E: "marine",    # marine_sgt
-                            0x93AB321A: "marine",    # marine_female
-                            0x96A73516: "brute",     # brute_captain
-                            0x96AB351A: "brute_cc",  # brute_chieftain_weapon
-                            0x974335B2: "brute_hc",  # brute_chieftain_armor
-                            0x9A4538B4: "jackal_s",  # jackal_sniper
-                            0x9AF33962: "brute",     # brute_bodyguard
-                            #0x9AF73966: "hunter"     # hunter
+            "020_base":   {
+                            0x8BE92A58: ["brute", 291],     # brute
+                            0x9AF33962: ["brute", 291],     # brute_bodyguard
+                            0x96A73516: ["brute", 291],     # brute_captain
+                            0x96A93518: ["brute", 291],     # brute_captain_major
+                            0x96AA3519: ["brute", 291],     # brute_captain_ultra
+                            0x974335B2: ["brute_hc", 291],    # brute_chieftain_armor
+                            0x96AB351A: ["brute_cc", 291],    # brute_chieftain_weapon
+                            0x91862FF5: ["brute", 291],       # brute_jumppack
+                            0x8C9E2B0D: ["brute", 291],       # brute_major
+                            0x8C9F2B0E: ["brute", 291],       # brute_ultra
+                            # 0x91762FE5: ["drone", 0],       # bugger
+                            # 0x91852FF4: ["brute", 0],       # bugger_major
+                            # 0x974535B4: ["elite", 0],       # dervish
+                            0x974635B5: ["elite", 0],       # elite
+                            0x977935E8: ["elite", 0],       # elite_major
+                            0x8E8A2CF9: ["grunt", 291],       # grunt
+                            0x8E8C2CFB: ["grunt", 291],       # grunt_major
+                            0x8E8D2CFC: ["grunt", 291],       # grunt_ultra
+                            # 0x9AF73966: ["hunter", 0],      # hunter
+                            0x910F2F7E: ["jackal", 0],      # jackal
+                            0x914C2FBB: ["jackal", 0],      # jackal_major
+                            0x9A4538B4: ["jackal_s", 0],    # jackal_sniper
+                            # 0x86A21968: ["marine", 0],      # marine
+                            0x93AB321A: ["marine", 0],      # marine_female
+                            # 0x9B8C39FB: ["marine", 0],      # marine_pilot
+                            0x91BF302E: ["marine", 0],      # marine_sgt
+                            0x8BE72A56: ["marine", 0],      # marine_wounded
+                            # 0x9ACB393A: ["marine", 0],      # naval_officer
+                            # 0x9A4738B6: ["marine", 0],      # miranda
+                            # 0x9AF53964: ["grunt", 0],       # truth
                           },
             "030_outskirts": {
                             0x82FC1A28: "brute",     # brute
@@ -331,7 +381,7 @@ class Halo3 (Game): # Handle hooking and process stuff
                             0x92C63135: "drone",     # bugger
             }
         }
-        self.ALLOWED_WEAPON_INDICES = { # level_name : { weapon : [weapon_datum, bsp_instantiated] }
+        self.ALLOWED_WEAPONS = { # level_name : { weapon : [weapon_datum, bsp_instantiated] }
             "010_jungle": {
                             "plasma_cannon":   [0xEBCA0A54, 0], # Plasma Cannon
                             "battle_rifle":    [0xEEC60D50, 0], # BR
@@ -391,7 +441,7 @@ class Halo3 (Game): # Handle hooking and process stuff
                           "machinegun_turret": [0xF36511EF, 0], # Machine Gun
                           }
         }
-        self.ALLOWED_WEAPONS_BY_CLASS = { # "archetype": [[list_regular],[list_valid_randoms]]
+        self.ALLOWED_WEAPONS_BY_CHARACTER = { # "archetype": [[list_regular],[list_valid_randoms]]
             "grunt":    [["plasma_pistol", "needler"],
                          ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "brute_shot"]],
 
@@ -404,7 +454,7 @@ class Halo3 (Game): # Handle hooking and process stuff
             "jackal_s": [["carbine", "beam_rifle"],
                          ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "beam_rifle"]],
 
-            "brute":    [["spiker", "brute_shot", "excavator", "carbine", "flak_cannon", "plasma_rifle"],
+            "brute":    [["spiker", "excavator", "carbine", "plasma_rifle"],
                          ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun"]],
 
             "brute_hc": [["gravity_hammer"],
@@ -429,16 +479,7 @@ class Halo3 (Game): # Handle hooking and process stuff
 
         super().__init__(exe, dll)
 
-    def level_maximum_palette_index(self):
-          return max(self.ALLOWED_INDICES[self.current_level])
-
-    def get_allowed_palette_indices(self):
-        return self.ALLOWED_INDICES[self.current_level]
-
-    def get_allowed_weapon_palette_indices(self):
-        return self.ALLOWED_WEAPON_INDICES[self.current_level]
-
-    def index_character_palette(self, address): # Unused for now
+    def index_character_palette(self, address): # Takes character palette addresses and adds all of the entries to character_palette[1]; Unused for now but confirmed to work
         cur_index = 0
         new_palette = []
         while (self.p.read_string(address + (cur_index * 16), 4) == "rahc"):
@@ -450,19 +491,25 @@ class Halo3 (Game): # Handle hooking and process stuff
         self.character_palette[1] = new_palette
 
 
-    def randomize_enemy(self, ctx): # Rax = Character Palette Index, Rbx/R15 = Squad Unit Index, R8 = Character Palette, R9/R14 = Base Squad Address (not consistent)
+    def randomize_char(self, ctx): # Rax = Character Palette Index, Rbx/R15 = Squad Unit Index, R8 = Character Palette, R9/R14 = Base Squad Address (not consistent)
         if [ctx['R9'], ctx['Rbx']] not in (i[0] for i in self.known_randomizations):
             #if self.character_palette[0] != self.current_level: # Index character palette for the first time
             #    self.index_character_palette(ctx['R8'])
             rng = -1
             level = self.current_level
-                
-            allowed = self.get_allowed_palette_indices()
 
-            if level in self.ALLOWED_INDICES.keys(): # only randomize if we've defined the level
-                if ctx['Rax'] in allowed: # Only randomize if we allow it
-                    rng = random.choice(allowed) # Select a random value from ALLOWED_INDICES
-                    ctx['Rax'] = rng
+            if level in self.ALLOWED_CHARACTERS.keys(): # only randomize if we've defined the level
+
+                allowed = self.ALLOWED_CHARACTERS[level] # Some conversion necessary since ALLOWED_CHARACTERS is a dictionary
+
+                if ctx['Rax'] in (allowed): # Only randomize if the original character datum is in ALLOWED_CHARACTERS
+                    while True: # Randomize until we get a character that's allowed in the current BSP
+                        rng = random.choice(list(allowed.items())) # Select a random value from ALLOWED_CHARACTERS
+                        if rng[1][1] < self.current_bsp:
+                            break
+
+                    ctx['Rax'] = rng[0]
+                    print(self.get_tag_string(rng[0]))
                     self.known_randomizations.append([[ctx['R9'], ctx['Rbx']], ctx['Rax']])
         else:
             known = [i for i in self.known_randomizations if i[0] == [ctx['R9'], ctx['Rbx']]]
@@ -470,37 +517,37 @@ class Halo3 (Game): # Handle hooking and process stuff
 
         return ctx # Must return ctx no matter what
 
-    # Randomize/set enemy weapons
-    def randomize_enemy_weapons(self, ctx): # Rbx = Character Datum for Comparison (Setting does weird things), R8 = Weapon Datum, R9 = UID, R11 = Base Squad
+    # Randomize/set weapons
+    def randomize_char_weapon(self, ctx): # Rbx = Character Datum for Comparison (Setting does weird things), R8 = Weapon Datum, R9 = UID, R11 = Base Squad
         if ctx['R9'] not in (i[0] for i in self.known_weapon_randomizations):
             character = ctx['Rbx'] # Get the character datum
             rng = -1
             choice = [0, 0]
             level = self.current_level
             
-            allowed_indices_by_class = self.ALLOWED_INDICES_BY_CLASS[level]
-            allowed_weapon_indices = self.ALLOWED_WEAPON_INDICES[level]
+            allowed_characters_on_level = self.ALLOWED_CHARACTERS[level]
+            allowed_weapons_on_level = self.ALLOWED_WEAPONS[level]
 
             try:
-                allowed = allowed_indices_by_class[character]
+                character_weapon_class = allowed_characters_on_level[character][0]
             except:
                 return ctx
             
-            allowed_weapons_by_class_normal = self.ALLOWED_WEAPONS_BY_CLASS[allowed][0]
-            allowed_weapons_by_class_random = self.ALLOWED_WEAPONS_BY_CLASS[allowed][1]
+            allowed_weapons_normal = self.ALLOWED_WEAPONS_BY_CHARACTER[character_weapon_class][0]
+            allowed_weapons_random = self.ALLOWED_WEAPONS_BY_CHARACTER[character_weapon_class][1]
 
             if weapon_randomizer_setting.get() == 0: # If we only want locked randomized weapons (default for class)
-                allowed_weapons = allowed_weapons_by_class_normal
+                allowed_weapons = allowed_weapons_normal
             else:
-                allowed_weapons = allowed_weapons_by_class_random
+                allowed_weapons = allowed_weapons_random
 
-            while rng not in allowed_weapon_indices:
+            while rng not in allowed_weapons_on_level:
                 rng = random.choice(allowed_weapons)
                 try:
-                    choice = allowed_weapon_indices[rng]
+                    choice = allowed_weapons_on_level[rng]
                     if choice[1] > self.current_bsp: # If the choice is after designated BSP
                         rng = -1
-                        if len(allowed_weapons_by_class_normal) < 2: # if there are no other options, return the map default
+                        if len(allowed_weapons) < 2: # if there are no other options, return the map default
                             return ctx
                         continue
                     else:
@@ -514,5 +561,19 @@ class Halo3 (Game): # Handle hooking and process stuff
             ctx['R8'] = known[0][1]
 
         return ctx # Must return ctx no matter what
+
+    def initial_loop(self, randomizer_obj_cpp, thread_debug_handling):
+        super().initial_loop(randomizer_obj_cpp, thread_debug_handling)
+        self.p.write_bytes(self.get_pointer(self.game_dll, [0x569092]), b'\x90\x90\x90\x90\x90\x90', 6) # enter_vehicle_immediate workaround
+        self.p.write_bytes(self.get_pointer(self.game_dll, [0x39980C]), b'\x90\x90', 2) # vehicle_load_magic workaround
+
+        table_offset_pointer = self.get_pointer(self.game_dll, self.special_offsets[1] + [0x3B4])
+        table_offset = self.p.read_ulong(table_offset_pointer) * 4
+        base_pointer = self.p.read_ulonglong(self.get_pointer(self.game_dll, self.special_offsets[0]))
+
+        val = self.p.read_bytes(base_pointer + table_offset, 272)
+        
+        print(val)
+
 
 g_current_randomizer: Game
