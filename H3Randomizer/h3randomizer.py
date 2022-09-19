@@ -437,6 +437,8 @@ class Halo3 (Game): # Handle hooking and process stuff
             "100_citadel":  [
                             ],
             "110_hc":       [
+                                [1, 0xF92617B0], # elite
+                                [1, 0xF92817B2], # elite_major
                             ],
             "120_halo":     [
                             ]
@@ -501,8 +503,13 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [1023, 'floodcombat_brute'],
                                 [1023, 'flood_pureform_tank'],
                                 [1023, 'flood_pureform_stalker'],
+                                [1023, 'flood_pureform_ranged'],
                             ],
             "110_hc":       [
+                                [163, 'flood_combat_human'],
+                                [163, 'flood_pureform_stalker'],
+                                [163, 'flood_pureform_ranged'],
+                                [163, 'flood_pureform_tank'],
                             ],
             "120_halo":     [
                             ]
@@ -553,6 +560,9 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [1, 0x925330DC], # sentinel_gun
                             ],
             "110_hc":       [
+                                [1, 0xF7DC1666], # flood_ranged_weapon
+                                [1, 0xFF241DAE], # sniper_rifle
+                                [1, 0xE7C1064B], # machinegun_turret
                             ],
             "120_halo":     [
                             ]
@@ -601,6 +611,8 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [1023, 'rocket_launcher'],
                             ],
             "110_hc":       [
+                                [163, 'sniper_rifle'],
+                                [163, 'machinegun_turret'],
                             ],
             "120_halo":     [
                             ]
