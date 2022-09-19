@@ -10,6 +10,75 @@ from pymem.ressources.structure import MODULEINFO
 import H3Randomizer_CPP
 from mainwindow import *
 
+class CharacterPalette:
+    level: str = "" # level this palette is instantiated for
+    values = [] # list of values as int
+    
+    def __init__(self, l, vals):
+        self.values = []
+        self.level = l
+        for val in vals:
+            self.values.append(int(val)) # Add each value to the values array as an integer
+
+    def __repr__(self):
+        out = f"CharacterPalette(level: {self.level}, values({len(self.values)}): {self.values_as_hex()})"
+        return out
+
+    def values_as_hex(self): # Get a list of the values as hexadecimal strings
+        out = []
+        for val in self.values:
+            out.append(hex(val).upper().replace('X', 'x'))
+        return out
+
+    def remove(self, value: int):
+        """Removes a value from the CharacterPalette"""
+        if value in self.values:
+            self.values.remove(value)
+        else:
+            print(f"{value} is not in the CharacterPalette!")
+
+    def add(self, value: int):
+        """Adds a value to the CharacterPalette"""
+        if value not in self.values:
+            self.values.append(value)
+        else:
+            print(f"{value} is already in the CharacterPalette!")
+
+class WeaponPalette:
+    level: str = "" # level this palette is instantiated for
+    values = [] # list of values as int
+    
+    def __init__(self, l, vals):
+        self.values = []
+        self.level = l
+        for val in vals:
+            self.values.append(int(val)) # Add each value to the values array as an integer
+
+    def __repr__(self):
+        out = f"WeaponPalette(level: {self.level}, values({len(self.values)}): {self.values_as_hex()})"
+        return out
+
+    def values_as_hex(self): # Get a list of the values as hexadecimal strings
+        out = []
+        for val in self.values:
+            out.append(hex(val).upper().replace('X', 'x'))
+        return out
+
+    def remove(self, value: int):
+        """Removes a value from the WeaponPalette"""
+        if value in self.values:
+            self.values.remove(value)
+        else:
+            print(f"{value} is not in the WeaponPalette!")
+
+    def add(self, value: int):
+        """Adds a value to the WeaponPalette"""
+        if value not in self.values:
+            self.values.append(value)
+        else:
+            print(f"{value} is already in the WeaponPalette!")
+
+
 class Game: # Abstraction for potential future randomizers
     p: Pymem = None
     base_mod: MODULEINFO = None
@@ -21,7 +90,8 @@ class Game: # Abstraction for potential future randomizers
     current_level: str = None
     current_bsp: int = 0
 
-    character_palette = ["", []] # Indexed at first randomize_char event per level. Structure is [level, [palette_offsets]]
+    character_palette: CharacterPalette = None
+    weapon_palette: WeaponPalette = None
 
     # TODO: Make these json and autoupdate
     charspawn_offsets = []
@@ -32,10 +102,20 @@ class Game: # Abstraction for potential future randomizers
     special_offsets = [] # Multiple special offsets that are game-specific
     
     seed = 0 # this way we don't lose the original seed value for when game restarts or whatever
+    
+    ALLOWED_LEVELS = [] # String values of level names
 
-    ALLOWED_CHARACTERS = {} # Allowed character datum values
-    ALLOWED_WEAPONS = {}
-    ALLOWED_WEAPONS_BY_CHARACTER = {}
+    DISQUALIFIED_CHARACTERS = [] # Characters disqualified on all levels; automatically removed from character palette and will not be randomized
+    DISQUALIFIED_WEAPONS = [] # Weapons disqualified on all levels; automatically removed from weapon palette and will not be randomized
+
+    CHARACTER_PALETTE_MODIFICATIONS = {}
+    CHARACTER_PALETTE_BSP = {} # Only randomize these ones after the designated BSP
+
+    WEAPON_PALETTE_MODIFICATIONS = {}
+    WEAPON_PALETTE_BSP = {} # Only randomize these ones after the designated BSP
+
+    WEAPON_CLASSES = {} # Map valid weapons to weapon classes
+    WEAPON_CLASSES_MAPPING = {} # Map subclasses (tag names) to weapon_classes
 
     known_randomizations = [] # Randomizations that have already occured in this randomizer; ie. do not reroll when restart mission or revert checkpoint. [[SQ, SQ_IDX], SAVED]
     known_weapon_randomizations = [] # Weapon randomizations that have already occured in this randomizer; [[SQ, UID], SAVED]
@@ -213,7 +293,7 @@ class Game: # Abstraction for potential future randomizers
 
                 self.update_current_level()
                 self.update_current_bsp()
-                if self.current_level in self.ALLOWED_CHARACTERS.keys(): # Check current_level if we're currently on a randomizable level
+                if self.current_level in self.ALLOWED_LEVELS: # Check current_level if we're currently on a randomizable level
                     waiting_for_game_msg = True
                     if in_game_msg:
                         console_output(f"Valid level detected ({self.current_level})")
@@ -295,222 +375,390 @@ class Halo3 (Game): # Handle hooking and process stuff
     
     def __init__(self, exe, dll):
         self.cpp_accessor = H3Randomizer_CPP
-        self.charspawn_offsets = [0x55C2E1]
+        self.charspawn_offsets = [0x55C2E1] # set character datum @ Rax
+        #self.charspawn_offsets = [0x55C2D9] # set character palette index @ Rax
         self.charweapon_offsets = [0x55331F]
         self.curlevel_offsets = [0x1EABB78]
         self.curbsp_offsets = [0xA41D20, 0x2C]
         self.string_dictionary_offsets = [0xA41CF8, 0x820000] # For future reference: obtained by finding serialized string dictionary and finding pointer to the base.
         self.special_offsets = [[0x1C37288],[0xA3F5B8]] # Scenario Mem Pointer, Mem Pointer Table
 
+        self.ALLOWED_LEVELS = ["010_jungle", "020_base", "030_outskirts", "040_voi", "050_floodvoi", "070_waste", "100_citadel", "110_hc", "120_halo"]
 
-        self.ALLOWED_CHARACTERS = { # level_name : { character_datum : [weapon_class, bsp_instantiated] }
-            "010_jungle": {
-                            0x8DA22C10: ["brute", 0],     # brute
-                            0x93ED325B: ["brute", 0],     # brute_bodyguard
-                            0x8DA12C0F: ["brute", 0],     # brute_captain
-                            0x904E2EBC: ["brute", 0],     # brute_captain_major
-                            0x904F2EBD: ["brute", 0],     # brute_captain_ultra
-                            0x90522EC0: ["brute_hc", 0],  # brute_chieftain_armor
-                            0x8E612CCF: ["brute", 0],     # brute_major
-                            0x8E622CD0: ["brute", 0],     # brute_ultra
-                            
-                            # 0x90EA2F58: ["elite", 0],     # dervish
+        self.DISQUALIFIED_CHARACTERS = ["marine_johnson", "marine_johnson_halo", "marine_johnson_boss", "dervish", "miranda", "naval_officer", "marine_pilot", "truth", "monitor", "monitor_combat", "brute_phantom", "cortana"]
+        self.DISQUALIFIED_WEAPONS = ["primary_skull", "secondary_skull"]
 
-                            0x90EB2F59: ["elite", 0],     # elite
-                            0x911E2F8C: ["elite", 0],     # elite_major
-
-                            0x87AA2618: ["grunt", 0],     # grunt
-                            0x8AC82936: ["grunt_h", 0],   # grunt_heavy
-                            0x87A92617: ["grunt", 0],     # grunt_major
-                            0x8AC72935: ["grunt", 0],     # grunt_ultra
-
-                            0x8AC92937: ["jackal", 4127],    # jackal
-                            0x8B072975: ["jackal", 4127],    # jackal_major
-                            0x93EA3258: ["jackal_s", 4127],  # jackal_sniper
-
-                            0xFE6F146E: ["marine", 0],    # marine
-                            0x84992307: ["marine", 0],    # marine_female
-                            # 0x8D1D2B8B: ["marine", 0],    # marine_johnson
-                            0x8B31299F: ["marine", 0],    # marine_sgt
-                          },
-            "020_base":   {
-                            0x8BE92A58: ["brute", 291],     # brute
-                            0x9AF33962: ["brute", 291],     # brute_bodyguard
-                            0x96A73516: ["brute", 291],     # brute_captain
-                            0x96A93518: ["brute", 291],     # brute_captain_major
-                            0x96AA3519: ["brute", 291],     # brute_captain_ultra
-                            0x974335B2: ["brute_hc", 291],    # brute_chieftain_armor
-                            0x96AB351A: ["brute_cc", 291],    # brute_chieftain_weapon
-                            0x91862FF5: ["brute", 291],       # brute_jumppack
-                            0x8C9E2B0D: ["brute", 291],       # brute_major
-                            0x8C9F2B0E: ["brute", 291],       # brute_ultra
-                            # 0x91762FE5: ["drone", 0],       # bugger
-                            # 0x91852FF4: ["brute", 0],       # bugger_major
-                            # 0x974535B4: ["elite", 0],       # dervish
-                            0x974635B5: ["elite", 0],       # elite
-                            0x977935E8: ["elite", 0],       # elite_major
-                            0x8E8A2CF9: ["grunt", 291],       # grunt
-                            0x8E8C2CFB: ["grunt", 291],       # grunt_major
-                            0x8E8D2CFC: ["grunt", 291],       # grunt_ultra
-                            # 0x9AF73966: ["hunter", 0],      # hunter
-                            0x910F2F7E: ["jackal", 0],      # jackal
-                            0x914C2FBB: ["jackal", 0],      # jackal_major
-                            0x9A4538B4: ["jackal_s", 0],    # jackal_sniper
-                            # 0x86A21968: ["marine", 0],      # marine
-                            0x93AB321A: ["marine", 0],      # marine_female
-                            # 0x9B8C39FB: ["marine", 0],      # marine_pilot
-                            0x91BF302E: ["marine", 0],      # marine_sgt
-                            0x8BE72A56: ["marine", 0],      # marine_wounded
-                            # 0x9ACB393A: ["marine", 0],      # naval_officer
-                            # 0x9A4738B6: ["marine", 0],      # miranda
-                            # 0x9AF53964: ["grunt", 0],       # truth
-                          },
-            "030_outskirts": {
-                            0x82FC1A28: "brute",     # brute
-                            0x84EA2359: "grunt",     # grunt
-                            0x876F25DE: "marine",    # marine
-                            0x8CB52B24: "jackal",    # jackal
-                            0x82FE1A2A: "brute",     # brute_major
-                            0x8D1D2B8C: "marine",    # marine_female
-                            0x902B2E9A: "marine",    # marine_sgt
-                            0x92173086: "brute",     # brute_captain
-                            0x921B308A: "grunt_h",   # grunt_heavy
-                            0x921C308B: "jackal_s",  # jackal_sniper
-                            0x921E308D: "brute",     # brute_jumppack
-                            0x922E309D: "brute_cc",  # brute_chieftain_weapon
-                            0x92C63135: "drone",     # bugger
-            }
+        self.CHARACTER_PALETTE_MODIFICATIONS = { # level_name : { [ [operation, datum | tagstring (removal only)], ... ] } operation is 0 or 1; 0 means remove, 1 means add
+            "010_jungle":   [
+                                [1, 0x90EB2F59],    # elite
+                                [1, 0x911E2F8C],    # elite_major
+                                [1, 0x8E622CD0],    # brute_ultra
+                            ],
+            "020_base":     [
+                                [0, 'marine'],      # need to remove regular marines for now
+                                [0, 'bugger'],      
+                                [0, 'bugger_major'], # this could probably work but rather not deal with it
+                                [0, 'hunter'],      # hunters in map file but not anywhere to be found
+                                [1, 0x96A93518],    # brute_captain_major
+                                [1, 0x96AA3519],    # brute_captain_ultra
+                                [1, 0x8C9E2B0D],    # brute_major
+                                [1, 0x8C9F2B0E],    # brute_ultra
+                                [1, 0x974635B5],    # elite
+                                [1, 0x977935E8],    # elite_major
+                                [1, 0x8E8C2CFB],    # grunt_major
+                                [1, 0x8E8D2CFC],    # grunt_ultra
+                                [1, 0x914C2FBB],    # jackal_major
+                            ],
+            "030_outskirts":[
+                                [1, 0x92193088],    # brute_captain_major
+                                [1, 0x921A3089],    # brute_captain_ultra
+                                [1, 0x82FF1A2B],    # brute_ultra
+                                [1, 0x93143183],    # bugger_major
+                                [1, 0x84EC235B],    # grunt_major
+                                [1, 0x84ED235C],    # grunt_ultra
+                                [1, 0x8CF22B61],    # jackal_major
+                            ],
+            "040_voi":      [
+                                [0, 'scarab'],
+                                [1, 0x91BB3044],    # elite
+                                [1, 0x92A3312C],    # elite_major
+                            ],
+            "050_floodvoi": [
+                            ],
+            "070_waste":    [
+                            ],
+            "100_citadel":  [
+                            ],
+            "110_hc":       [
+                            ],
+            "120_halo":     [
+                            ]
         }
-        self.ALLOWED_WEAPONS = { # level_name : { weapon : [weapon_datum, bsp_instantiated] }
-            "010_jungle": {
-                            "plasma_cannon":   [0xEBCA0A54, 0], # Plasma Cannon
-                            "battle_rifle":    [0xEEC60D50, 0], # BR
-                            "plasma_pistol":   [0xEF260DB0, 0], # PP
-                            "needler":         [0xEFFD0E87, 0], # Needler
-                            "magnum":          [0xE5E0046A, 0], # Magnum
-                            "spiker":          [0xF07B0F05, 0], # Spiker
-                            "brute_shot":      [0xF17A1004, 0], # Brute Shot
-                            "carbine":         [0xF17A1004, 0], # Carbine
-                            "gravity_hammer":  [0xF1C91053, 0], # Gravity Hammer
-                            "beam_rifle":      [0xF1E81075, 0], # Beam Rifle
-                            "sniper_rifle":    [0xF23610C0, 5631], # Sniper Rifle only loaded after downed pelican
-                            "assault_rifle":   [0xF2991123, 0], # Assault Rifle
-                            "energy_sword":    [0xF2D81162, 0], # Energy Sword
-                            "smg":             [0xF4D3135D, 0], # SMG
-                            "excavator":       [0xF600148A, 0], # Mauler
-                            "flak_cannon":     [0xF63114BB, 0], # FRG
-                            "rocket_launcher": [0xF8BF1749, 5631], # Rocket Launcher only loaded after downed pelican
-                            "plasma_rifle":    [0xF4891313, 0], # Plasma Rifle
-                            "shotgun":         [0xF86A16F4, 5631] # Shotgun only loaded after downed pelican 5631, 6143 
-                          },
-            "020_base": {
-                            "plasma_cannon":   [0xF1260FB0, 0], # Plasma Cannon
-                            "battle_rifle":    [0xE6C1054B, 0], # BR
-                            "plasma_pistol":   [0xF46A12F4, 0], # PP
-                            "needler":         [0xF3EB1275, 0], # Needler
-                            "magnum":          [0xE9A1082B, 0], # Magnum
-                            "spiker":          [0xF39E1228, 0], # Spiker
-                            "brute_shot":      [0xF53713C1, 0], # Brute Shot
-                            "carbine":         [0xF57513FF, 0], # Carbine
-                            "gravity_hammer":  [0xF5C0144A, 831], # Gravity Hammer only after Chieftain
-                            "beam_rifle":      [0xF65414DE, 1023], # Beam Rifle only after Hangar 2
-                            "assault_rifle":   [0xE5C2044C, 0], # Assault Rifle
-                            "energy_sword":    [0xF6EC1576, 0], # Energy Sword
-                            "smg":             [0xE8B0073A, 0], # SMG
-                            "flak_cannon":     [0xF69D1527, 1023], # FRG
-                            "spartan_laser":   [0xF8D91763, 0], # Spartan Laser
-                            "plasma_rifle":    [0xF5E2146C, 0], # Plasma Rifle
-                            "shotgun":         [0xE72305AD, 0], # Shotgun
-                          "machinegun_turret": [0xE2BD0147, 0], # Machine Gun
-                          },
-            "030_outskirts": {
-                            #"magnum":          [0xEA83090D, 0], # Magnum doesn't show up
-                            #"needler":         [0xF93917C3, 0], # Needler doesn't show up
-                            "plasma_pistol":   [0xF6B0153A, 0], # Plasma Pistol
-                            "assault_rifle":   [0xF51A13A4, 0], # Assault Rifle
-                            "battle_rifle":    [0xF56F13F9, 0], # Battle Rifle
-                            "beam_rifle":      [0xF893171D, 0], # Beam Rifle
-                            "carbine":         [0xF7BE1648, 0], # Carbine
-                            "plasma_rifle":    [0xF80C1696, 0], # Plasma Rifle
-                            "shotgun":         [0xF8E0176A, 0], # Shotgun
-                            "sniper_rifle":    [0xF65414DE, 0], # Sniper Rifle
-                            "spiker":          [0xF5BB1445, 15], # Spiker
-                            "flak_cannon":     [0xF85A16E4, 15], # FRG
-                            "brute_shot":      [0xF77F1609, 31], # Brute Shot
-                            "plasma_cannon":   [0xF300118A, 0], # Plasma Cannon
-                          "machinegun_turret": [0xF36511EF, 0], # Machine Gun
-                          }
+
+        self.CHARACTER_PALETTE_BSP = {
+            "010_jungle":   [
+                                [4111, 'jackal'],
+                                [4111, 'jackal_major'],
+                                [4111, 'jackal_sniper'],
+                            ],
+            "020_base":     [
+                                [291, 'brute'],
+                                [291, 'brute_bodyguard'],
+                                [291, 'brute_captain'],
+                                [291, 'brute_captain_major'],
+                                [291, 'brute_captain_ultra'],
+                                [291, 'brute_chieftain_armor'],
+                                [291, 'brute_chieftain_weapon'],
+                                [291, 'brute_jumppack'],
+                                [291, 'brute_major'],
+                                [291, 'brute_ultra'],
+                                [291, 'grunt'],
+                                [291, 'grunt_major'],
+                                [291, 'grunt_ultra'],
+                            ],
+            "030_outskirts":[
+                            ],
+            "040_voi":      [
+                                [271, 0x902C2EB5], # bugger
+                                [271, 0x90772F00], # bugger_major
+                                [3, 0x91152F9E], # worker
+                                [3, 0x95F6347F], # worker_wounded
+                                [7, 0x91BB3044], # elite
+                                [7, 0x92A3312C], # elite_major
+                                [383, 0x907E2F07], # hunter
+                                [3, 0x825320DC], # jackal
+                                [3, 0x825520DE], # jackal_major
+                                [3, 0x910E2F97], # jackal_sniper
+                            ],
+            "050_floodvoi": [
+                            ],
+            "070_waste":    [
+                            ],
+            "100_citadel":  [
+                            ],
+            "110_hc":       [
+                            ],
+            "120_halo":     [
+                            ]
         }
-        self.ALLOWED_WEAPONS_BY_CHARACTER = { # "archetype": [[list_regular],[list_valid_randoms]]
+
+        self.WEAPON_PALETTE_MODIFICATIONS = {
+            "010_jungle":   [
+                                [1, 0xEBCA0A54],    # plasma_cannon
+                                [1, 0xF4D3135D],    # smg
+                                [1, 0xF600148A],    # excavator
+                                [1, 0xF63114BB],    # flak_cannon
+                                [1, 0xF8BF1749],    # rocket_launcher
+                                [1, 0xF4891313],    # plasma_rifle
+                                [1, 0xF86A16F4],    # shotgun
+                                [1, 0xECEA0B74],    # machinegun_turret
+                            ],
+            "020_base":     [
+                                [1, 0xF8D91763], # spartan_laser
+                                [1, 0xE2BD0147] # machinegun_turret
+                            ],
+            "030_outskirts":[
+                                [1, 0xF36511EF], # machinegun_turret
+                                [0, 'needler']   # needler doesn't show up for some reason
+                            ],
+            "040_voi":      [
+                                [0, 'missile_pod'],                
+                                [1, 0x90DD2F66], # hunter_particle_cannon
+                                [1, 0x94BA3343], # energy_blade
+                            ],
+            "050_floodvoi": [
+                            ],
+            "070_waste":    [
+                            ],
+            "100_citadel":  [
+                            ],
+            "110_hc":       [
+                            ],
+            "120_halo":     [
+                            ]
+
+        }
+
+        self.WEAPON_PALETTE_BSP = {
+            "010_jungle":   [
+                                [5631, 'sniper_rifle'],
+                                [5631, 'rocket_launcher'],
+                                [5631, 'shotgun'],
+                            ],
+            "020_base":     [
+                                [831, 'gravity_hammer'],
+                                [1023, 'beam_rifle'],
+                                [1023, 'flak_cannon'],
+                            ],
+            "030_outskirts":[
+                                [15, 'spike_rifle'],
+                                [15, 'flak_cannon'],
+                                [31, 'brute_shot']
+                            ],
+            "040_voi":      [
+                                [383, 'hunter_particle_cannon'],
+                                [7, 'energy_blade'],
+                            ],
+            "050_floodvoi": [
+                            ],
+            "070_waste":    [
+                            ],
+            "100_citadel":  [
+                            ],
+            "110_hc":       [
+                            ],
+            "120_halo":     [
+                            ]
+        }
+
+        self.WEAPON_CLASSES = { # "archetype": [[list_regular],[list_valid_randoms]]
             "grunt":    [["plasma_pistol", "needler"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "brute_shot"]],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "brute_shot"]],
 
-            "grunt_h":  [["plasma_pistol", "needler", "spiker", "flak_cannon", "excavator"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "brute_shot"]],
+            "grunt_h":  [["plasma_pistol", "needler", "spike_rifle", "flak_cannon"],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "brute_shot"]],
 
             "jackal":   [["plasma_pistol", "needler"], 
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "beam_rifle", "plasma_rifle"]],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "beam_rifle", "plasma_rifle"]],
 
-            "jackal_s": [["carbine", "beam_rifle"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "beam_rifle"]],
+            "jackal_s": [["covenant_carbine", "beam_rifle"],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "beam_rifle"]],
 
-            "brute":    [["spiker", "excavator", "carbine", "plasma_rifle"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun"]],
+            "brute":    [["spike_rifle", "excavator", "covenant_carbine", "plasma_rifle", "brute_shot"],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun", "plasma_cannon", "machinegun_turret"]],
 
             "brute_hc": [["gravity_hammer"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun"]],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun"]],
             
             "brute_cc": [["flak_cannon", "plasma_cannon"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun", "plasma_cannon", "machinegun_turret"]],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun", "plasma_cannon", "machinegun_turret"]],
 
-            "drone":    [["plasma_pistol", "needler"],
-                         ["plasma_pistol", "needler", "magnum", "spiker", "smg", "excavator", "plasma_rifle"]],
+            "bugger":    [["plasma_pistol", "needler"],
+                         ["plasma_pistol", "needler", "magnum", "spike_rifle", "smg", "excavator", "plasma_rifle"]],
 
             "hunter":    [["hunter_particle_cannon"],
                          ["hunter_particle_cannon"]],
 
-            "elite":    [["needler", "plasma_pistol", "plasma_rifle", "carbine", "flak_cannon", "energy_sword", "beam_rifle", "spartan_laser"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "energy_sword", "sniper_rifle", "beam_rifle", "shotgun", "spartan_laser", "plasma_cannon"]],
+            "elite":    [["needler", "plasma_pistol", "plasma_rifle", "covenant_carbine", "flak_cannon", "energy_blade", "beam_rifle", "spartan_laser"],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "energy_blade", "sniper_rifle", "beam_rifle", "shotgun", "spartan_laser", "plasma_cannon", "machinegun_turret"]],
 
             "marine":   [["magnum", "assault_rifle", "battle_rifle", "smg", "rocket_launcher", "shotgun", "spartan_laser"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spiker", "carbine", "assault_rifle", "smg", "excavator", "sniper_rifle", "flak_cannon", "rocket_launcher", "spartan_laser"]]
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "sniper_rifle", "flak_cannon", "rocket_launcher", "spartan_laser"]],
+            
+            "civilian": [["magnum"],
+                         ["magnum"]],
+
+            "flood":    [[]
+                         []]
            
+        }
+        self.WEAPON_CLASSES_MAPPING = {
+            "brute":                    "brute",
+            "brute_bodyguard":          "brute",
+            "brute_captain":            "brute",
+            "brute_captain_major":      "brute",
+            "brute_captain_ultra":      "brute",
+            "brute_chieftain_armor":    "brute_hc",
+            "brute_chieftain_weapon":   "brute_cc",
+            "brute_jumppack":           "brute",
+            "brute_major":              "brute",
+            "brute_stalker":            "brute",
+            "brute_ultra":              "brute",
+            "brute_captain_no_grenade": "brute",
+            "brute_captain_major_no_grenade": "brute",
+            "brute_chieftain_armor_no_grenade": "brute_hc",
+            "brute_bodyguard_no_grenade": "brute",
+
+            "worker":                   "civilian",
+            "worker_wounded":           "civilian",
+
+            "bugger":                   "bugger",
+            "bugger_major":             "bugger",
+
+            "dervish":                  "elite",
+
+            "elite":                    "elite",
+            "elite_major":              "elite",
+            "elite_specops":            "elite",
+            "elite_specops_commander":  "elite",
+
+            "flood_carrier":            "noweapon",
+            #"floodcombat_base":         "flood",
+            "floodcombat_brute":        "flood",
+            "floodcombat_elite":        "flood",
+          "floodcombat_elite_shielded": "flood",
+            "flood_combat_human":       "flood",
+            
+            "flood_infection":          "noweapon",
+
+            "flood_pureform_ranged":    "flood_pureranged",
+            "flood_pureform_stalker":   "noweapon",
+            "flood_pureform_tank":      "noweapon",
+
+            "grunt":                    "grunt",
+            "grunt_heavy":              "grunt_h",
+            "grunt_major":              "grunt",
+            "grunt_ultra":              "grunt",
+
+            "hunter":                   "hunter",
+
+            "jackal":                   "jackal",
+            "jackal_major":             "jackal",
+            "jackal_sniper":            "jackal_s",
+
+            "marine":                   "marine",
+            "marine_female":            "marine",
+            "marine_johnson":           "marine",
+            "marine_odst":              "marine",
+            "marine_odst_sgt":          "marine",
+            "marine_no_trade_weapon":   "marine",
+            "marine_sgt":               "marine",
+            "marine_wounded":           "marine",
+
+            "sentinel_aggressor":       "sentinel",
+          "sentinel_aggressor_captain": "sentinel",
+            "sentinel_aggressor_major": "sentinel",
+            "sentinel_constructor":     "noweapon",
         }
 
         super().__init__(exe, dll)
 
-    def index_character_palette(self, address): # Takes character palette addresses and adds all of the entries to character_palette[1]; Unused for now but confirmed to work
+    def get_character_palette(self, address): # Creates character palette object with the default values for the current level
         cur_index = 0
-        new_palette = []
+        palette = CharacterPalette(self.current_level, [])
+        
+        print(palette)
+
         while (self.p.read_string(address + (cur_index * 16), 4) == "rahc"):
             datum = bytearray(self.p.read_bytes((address + (cur_index * 16) + 12), 4))
             datum.reverse()
-            new_palette.append(datum)
+            out = int(f"0x{datum.hex().upper()}", 16)
+
+            if self.get_tag_string(out) not in self.DISQUALIFIED_CHARACTERS:
+                palette.add(out)
+
             cur_index += 1
-        self.character_palette[0] = self.current_level
-        self.character_palette[1] = new_palette
+        
+        if self.current_level in self.CHARACTER_PALETTE_MODIFICATIONS:
+            for op in self.CHARACTER_PALETTE_MODIFICATIONS[self.current_level]: # Handle palette modifications
+                if op[0] == 0:
+                    for val in palette.values:
+                        if self.get_tag_string(val) == op[1]:
+                            try:
+                                palette.remove(val)
+                            except Exception as e:
+                                console_output(e)
+                else:
+                    palette.add(op[1])
+
+        return palette
+
+    def get_weapon_palette(self, address): # Creates weapon palette object with the default values for the current level
+        cur_index = 0
+        palette = WeaponPalette(self.current_level, [])
+
+        while (self.p.read_string(address + (cur_index * 48), 4) == "paew"):
+            datum = bytearray(self.p.read_bytes((address + (cur_index * 48) + 12), 4))
+            datum.reverse()
+            out = int(f"0x{datum.hex().upper()}", 16)
+
+            if self.get_tag_string(out) not in self.DISQUALIFIED_WEAPONS:
+                palette.add(out)
+
+            cur_index += 1
+
+        if self.current_level in self.WEAPON_PALETTE_MODIFICATIONS:
+            for op in self.WEAPON_PALETTE_MODIFICATIONS[self.current_level]: # Handle palette modifications
+                if op[0] == 0:
+                    for val in palette.values:
+                        if self.get_tag_string(val) == op[1]:
+                            try:
+                                palette.remove(val)
+                            except Exception as e:
+                                console_output(e)
+                else:
+                    palette.add(op[1])
+
+        return palette
+
+    def check_character_palette_bsp(self, datum): # Returns boolean for whether or not the datum is allowed in the current bsp
+        tag = self.get_tag_string(datum)
+        for val in self.CHARACTER_PALETTE_BSP[self.current_level]:
+            if val[1] == tag: # If the tag has a condition
+                if val[0] > self.current_bsp: # If the designated BSP is higher than the current BSP return False
+                    return False
+
+        return True # Return True if we loop through the whole thing and don't find the thing
+
+    def check_weapon_palette_bsp(self, datum): # Returns boolean for whether or not the datum is allowed in the current bsp
+        tag = self.get_tag_string(datum)
+        for val in self.WEAPON_PALETTE_BSP[self.current_level]:
+            if val[1] == tag: # If the tag has a condition
+                if val[0] > self.current_bsp: # If the designated BSP is higher than the current BSP return False
+                    print(val[0] + self.current_bsp)
+                    print(f"Disqualified {tag}")
+                    return False
+
+        return True # Return True if we loop through the whole thing and don't find the thing
 
 
-    def randomize_char(self, ctx): # Rax = Character Palette Index, Rbx/R15 = Squad Unit Index, R8 = Character Palette, R9/R14 = Base Squad Address (not consistent)
+    def randomize_char(self, ctx): # Rax = Character Datum, Rbx/R15 = Squad Unit Index, R8 = Character Palette, R9/R14 = Base Squad Address (not consistent)
         if [ctx['R9'], ctx['Rbx']] not in (i[0] for i in self.known_randomizations):
-            #if self.character_palette[0] != self.current_level: # Index character palette for the first time
-            #    self.index_character_palette(ctx['R8'])
             rng = -1
             level = self.current_level
 
-            if level in self.ALLOWED_CHARACTERS.keys(): # only randomize if we've defined the level
+            palette = self.character_palette
+            if palette.level != level:
+                return ctx
 
-                allowed = self.ALLOWED_CHARACTERS[level] # Some conversion necessary since ALLOWED_CHARACTERS is a dictionary
-
-                if ctx['Rax'] in (allowed): # Only randomize if the original character datum is in ALLOWED_CHARACTERS
-                    while True: # Randomize until we get a character that's allowed in the current BSP
-                        rng = random.choice(list(allowed.items())) # Select a random value from ALLOWED_CHARACTERS
-                        if rng[1][1] < self.current_bsp:
-                            break
-
-                    ctx['Rax'] = rng[0]
-                    print(self.get_tag_string(rng[0]))
-                    self.known_randomizations.append([[ctx['R9'], ctx['Rbx']], ctx['Rax']])
+            if ctx['Rax'] in palette.values: # Only randomize if the original character datum is in the palette
+                while True: # Randomize until we get a character that's allowed in the current BSP
+                    rng = random.choice(palette.values) # Select a random value from the CharacterPalette
+                    if self.check_character_palette_bsp(rng):
+                        break
+                        
+                ctx['Rax'] = rng
+                self.known_randomizations.append([[ctx['R9'], ctx['Rbx']], ctx['Rax']])
         else:
             known = [i for i in self.known_randomizations if i[0] == [ctx['R9'], ctx['Rbx']]]
             ctx['Rax'] = known[0][1]
@@ -522,39 +770,42 @@ class Halo3 (Game): # Handle hooking and process stuff
         if ctx['R9'] not in (i[0] for i in self.known_weapon_randomizations):
             character = ctx['Rbx'] # Get the character datum
             rng = -1
-            choice = [0, 0]
             level = self.current_level
             
-            allowed_characters_on_level = self.ALLOWED_CHARACTERS[level]
-            allowed_weapons_on_level = self.ALLOWED_WEAPONS[level]
+            character_palette = self.character_palette
+            weapon_palette = self.weapon_palette
+
+            if weapon_palette.level != level:
+                return ctx
 
             try:
-                character_weapon_class = allowed_characters_on_level[character][0]
+                character_weapon_class = self.WEAPON_CLASSES_MAPPING[self.get_tag_string(character)]
             except:
+                print(f"Could not get character_weapon_class of {self.get_tag_string(character)}!")
                 return ctx
             
-            allowed_weapons_normal = self.ALLOWED_WEAPONS_BY_CHARACTER[character_weapon_class][0]
-            allowed_weapons_random = self.ALLOWED_WEAPONS_BY_CHARACTER[character_weapon_class][1]
+            allowed_weapons_normal = self.WEAPON_CLASSES[character_weapon_class][0]
+            allowed_weapons_random = self.WEAPON_CLASSES[character_weapon_class][1]
 
             if weapon_randomizer_setting.get() == 0: # If we only want locked randomized weapons (default for class)
                 allowed_weapons = allowed_weapons_normal
             else:
                 allowed_weapons = allowed_weapons_random
 
-            while rng not in allowed_weapons_on_level:
-                rng = random.choice(allowed_weapons)
-                try:
-                    choice = allowed_weapons_on_level[rng]
-                    if choice[1] > self.current_bsp: # If the choice is after designated BSP
-                        rng = -1
-                        if len(allowed_weapons) < 2: # if there are no other options, return the map default
-                            return ctx
-                        continue
-                    else:
-                        break
-                except:
-                    continue
-            ctx['R8'] = choice[0]
+            while True:
+                if character_weapon_class == "noweapon":
+                    rng = 0xFFFFFFFF
+                    break
+                # Keep rolling until the weapon is allowed for class and allowed in the current bsp
+                rng = random.choice(weapon_palette.values)
+                if self.get_tag_string(rng) in allowed_weapons and self.check_weapon_palette_bsp(rng):
+                    break
+                if self.get_tag_string(rng) in allowed_weapons and not self.check_weapon_palette_bsp(rng) and len(allowed_weapons) < 2: # If the weapon isn't allowed in current bsp and it's the only choice just return default
+                    print(f"{character}")
+                    print(f"{self.get_tag_string(rng)}")
+                    return ctx
+
+            ctx['R8'] = rng
             self.known_weapon_randomizations.append([ctx['R9'], ctx['R8']])
         else:
             known = [i for i in self.known_weapon_randomizations if i[0] == ctx['R9']]
@@ -567,13 +818,63 @@ class Halo3 (Game): # Handle hooking and process stuff
         self.p.write_bytes(self.get_pointer(self.game_dll, [0x569092]), b'\x90\x90\x90\x90\x90\x90', 6) # enter_vehicle_immediate workaround
         self.p.write_bytes(self.get_pointer(self.game_dll, [0x39980C]), b'\x90\x90', 2) # vehicle_load_magic workaround
 
-        table_offset_pointer = self.get_pointer(self.game_dll, self.special_offsets[1] + [0x3B4])
-        table_offset = self.p.read_ulong(table_offset_pointer) * 4
-        base_pointer = self.p.read_ulonglong(self.get_pointer(self.game_dll, self.special_offsets[0]))
+        print("Attempting to obtain CharacterPalette...")
+        while True:
+            try:
+                table_offset_pointer = self.get_pointer(self.game_dll, self.special_offsets[1] + [0x3B4])
+                table_offset = self.p.read_ulong(table_offset_pointer) * 4
+                base_pointer = self.p.read_ulonglong(self.get_pointer(self.game_dll, self.special_offsets[0]))
+            except:
+                continue
+            else:
+                self.character_palette = self.get_character_palette(base_pointer + table_offset)
+                print(self.character_palette)
+                break
 
-        val = self.p.read_bytes(base_pointer + table_offset, 272)
+        print("Attempting to obtain WeaponPalette...")
+        while True:
+            try:
+                table_offset_pointer = self.get_pointer(self.game_dll, self.special_offsets[1] + [0x12C])
+                table_offset = self.p.read_ulong(table_offset_pointer) * 4
+                base_pointer = self.p.read_ulonglong(self.get_pointer(self.game_dll, self.special_offsets[0]))
+            except:
+                continue
+            else:
+                self.weapon_palette = self.get_weapon_palette(base_pointer + table_offset)
+                print(self.weapon_palette)
+                break
+
+    def main_loop(self, randomizer_obj_cpp, thread_debug_handling):
+        super().main_loop(randomizer_obj_cpp, thread_debug_handling)
+
+        if self.current_level != self.character_palette.level:
+            print("New level detected, getting new character palette!")
+            while True:
+                try:
+                    self.character_palette = None
+                    table_offset_pointer = self.get_pointer(self.game_dll, self.special_offsets[1] + [0x3B4])
+                    table_offset = self.p.read_ulong(table_offset_pointer) * 4
+                    base_pointer = self.p.read_ulonglong(self.get_pointer(self.game_dll, self.special_offsets[0]))
+                except:
+                    continue # We have to keep trying to get palette or else uh oh
+                else:
+                    self.character_palette = self.get_character_palette(base_pointer + table_offset)
+                    print(self.character_palette)
+                    break
         
-        print(val)
-
+        if self.current_level != self.weapon_palette.level:
+            print("New level detected, getting new weapon palette!")
+            while True:
+                try:
+                    self.weapon_palette = None
+                    table_offset_pointer = self.get_pointer(self.game_dll, self.special_offsets[1] + [0x12C])
+                    table_offset = self.p.read_ulong(table_offset_pointer) * 4
+                    base_pointer = self.p.read_ulonglong(self.get_pointer(self.game_dll, self.special_offsets[0]))
+                except:
+                    continue # We have to keep trying to get palette or else uh oh
+                else:
+                    self.weapon_palette = self.get_weapon_palette(base_pointer + table_offset)
+                    print(self.weapon_palette)
+                    break
 
 g_current_randomizer: Game
