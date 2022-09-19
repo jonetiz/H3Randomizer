@@ -130,6 +130,9 @@ class Game: # Abstraction for potential future randomizers
         '''
         Returns the string of a given tag datum.
         '''
+        if datum == 0x00000000 or datum == 0xFFFFFFFF:
+            return "null"
+
         i = datum % 0x10000     # Get the lower 4 bits of the tag datum
         i *= 8                  # Multiply by 8 (length of each string table entry)
         dict_base = self.get_pointer(self.game_dll, self.string_dictionary_offsets)
@@ -390,7 +393,7 @@ class Halo3 (Game): # Handle hooking and process stuff
         self.ALLOWED_LEVELS = ["010_jungle", "020_base", "030_outskirts", "040_voi", "050_floodvoi", "070_waste", "100_citadel", "110_hc", "120_halo"]
 
         self.DISQUALIFIED_CHARACTERS = ["marine_johnson", "marine_johnson_halo", "marine_johnson_boss", "dervish", "miranda", "naval_officer", "marine_pilot", "truth", "monitor", "monitor_combat", "brute_phantom", "cortana", "flood_infection"]
-        self.DISQUALIFIED_WEAPONS = ["primary_skull", "secondary_skull"]
+        self.DISQUALIFIED_WEAPONS = ["primary_skull", "secondary_skull", "monitor_beam", "spartan_laser_overloaded"]
 
         self.CHARACTER_PALETTE_MODIFICATIONS = { # level_name : { [ [operation, datum | tagstring (removal only)], ... ] } operation is 0 or 1; 0 means remove, 1 means add
             "010_jungle":   [
@@ -441,6 +444,8 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [1, 0xF92817B2], # elite_major
                             ],
             "120_halo":     [
+                                [1, 0x8E952D03], # elite
+                                [1, 0x8EC72D35], # elite_major
                             ]
         }
 
@@ -506,12 +511,14 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [1023, 'flood_pureform_ranged'],
                             ],
             "110_hc":       [
+                                [163, 'flood_carrier'],
                                 [163, 'flood_combat_human'],
                                 [163, 'flood_pureform_stalker'],
                                 [163, 'flood_pureform_ranged'],
                                 [163, 'flood_pureform_tank'],
                             ],
             "120_halo":     [
+                                [1151, 'flood_carrier'],
                             ]
         }
 
@@ -565,6 +572,8 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [1, 0xE7C1064B], # machinegun_turret
                             ],
             "120_halo":     [
+                                [1, 0x87BB2629], # sentinel_gun
+                                [1, 0x876A25D8], # flood_ranged_weapon
                             ]
 
         }
@@ -652,17 +661,17 @@ class Halo3 (Game): # Handle hooking and process stuff
             "marine":   [["magnum", "assault_rifle", "battle_rifle", "smg", "rocket_launcher", "shotgun", "spartan_laser"],
                          ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "sniper_rifle", "flak_cannon", "rocket_launcher", "spartan_laser"]],
             
-            "civilian": [["magnum"],
-                         ["magnum"]],
+            "civilian": [["magnum", "null"],
+                         ["magnum", "null"]],
 
-            "flood":    [["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "plasma_rifle", "shotgun", "flamethrower", "gravity_hammer"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "plasma_rifle", "shotgun", "flamethrower", "gravity_hammer"]],
+            "flood":    [["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "plasma_rifle", "shotgun", "flamethrower", "gravity_hammer", "null"],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "plasma_rifle", "shotgun", "flamethrower", "gravity_hammer", "null"]],
             
             "flood_pureranged": [["flood_ranged_weapon"],["flood_ranged_weapon"]],
 
             "sentinel": [["sentinel_gun"],["sentinel_gun"]],
 
-            "noweapon": [[""],[""]]
+            "noweapon": [["null"],["null"]]
         }
         self.WEAPON_CLASSES_MAPPING = {
             "brute":                    "brute",
@@ -766,6 +775,8 @@ class Halo3 (Game): # Handle hooking and process stuff
     def get_weapon_palette(self, address): # Creates weapon palette object with the default values for the current level
         cur_index = 0
         palette = WeaponPalette(self.current_level, [])
+
+        palette.add(0x00000000) # noweapon choice
 
         while (self.p.read_string(address + (cur_index * 48), 4) == "paew"):
             datum = bytearray(self.p.read_bytes((address + (cur_index * 48) + 12), 4))
