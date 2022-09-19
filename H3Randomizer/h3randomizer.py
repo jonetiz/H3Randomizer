@@ -134,8 +134,12 @@ class Game: # Abstraction for potential future randomizers
         i *= 8                  # Multiply by 8 (length of each string table entry)
         dict_base = self.get_pointer(self.game_dll, self.string_dictionary_offsets)
         ptr = self.p.read_ulonglong(dict_base + i)
-        
-        out = self.p.read_string(ptr, 255)
+
+        try:
+            out = self.p.read_string(ptr, 255)
+        except:
+            print(f"ERROR: Could not get tag string of {hex(datum)}")
+            return "" # return blank string to hopefully not cause issues lmao
 
         if only_last:
             return out.split("\\")[-1]
@@ -385,7 +389,7 @@ class Halo3 (Game): # Handle hooking and process stuff
 
         self.ALLOWED_LEVELS = ["010_jungle", "020_base", "030_outskirts", "040_voi", "050_floodvoi", "070_waste", "100_citadel", "110_hc", "120_halo"]
 
-        self.DISQUALIFIED_CHARACTERS = ["marine_johnson", "marine_johnson_halo", "marine_johnson_boss", "dervish", "miranda", "naval_officer", "marine_pilot", "truth", "monitor", "monitor_combat", "brute_phantom", "cortana"]
+        self.DISQUALIFIED_CHARACTERS = ["marine_johnson", "marine_johnson_halo", "marine_johnson_boss", "dervish", "miranda", "naval_officer", "marine_pilot", "truth", "monitor", "monitor_combat", "brute_phantom", "cortana", "flood_infection"]
         self.DISQUALIFIED_WEAPONS = ["primary_skull", "secondary_skull"]
 
         self.CHARACTER_PALETTE_MODIFICATIONS = { # level_name : { [ [operation, datum | tagstring (removal only)], ... ] } operation is 0 or 1; 0 means remove, 1 means add
@@ -424,9 +428,11 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [1, 0x92A3312C],    # elite_major
                             ],
             "050_floodvoi": [
-                                [0, 'worker']
+                                [0, 'worker'],
+                                #[0, 'flood_infection'] # having too many of these crashes the game and/or causes unintended behavior
                             ],
             "070_waste":    [
+                                [0, 'scarab']
                             ],
             "100_citadel":  [
                             ],
@@ -460,25 +466,29 @@ class Halo3 (Game): # Handle hooking and process stuff
             "030_outskirts":[
                             ],
             "040_voi":      [
-                                [271, 0x902C2EB5], # bugger
-                                [271, 0x90772F00], # bugger_major
-                                [3, 0x91152F9E], # worker
-                                [3, 0x95F6347F], # worker_wounded
-                                [7, 0x91BB3044], # elite
-                                [7, 0x92A3312C], # elite_major
-                                [383, 0x907E2F07], # hunter
-                                [3, 0x825320DC], # jackal
-                                [3, 0x825520DE], # jackal_major
-                                [3, 0x910E2F97], # jackal_sniper
+                                [271, 'bugger'], # 0x902C2EB5
+                                [271, 'bugger_major'], # 0x90772F00
+                                [3, 'worker'], # 0x91152F9E
+                                [3, 'worker_wounded'], # 0x95F6347F
+                                [7, 'elite'], # 0x91BB3044
+                                [7, 'elite_major'], # 0x92A3312C
+                                [383, 'hunter'], # 0x907E2F07
+                                [3, 'jackal'], # 0x825320DC
+                                [3, 'jackal_major'], # 0x825520DE
+                                [3, 'jackal_sniper'], # 0x910E2F97
                             ],
             "050_floodvoi": [
-                                [135, 0x82CF2158], # flood_carrier
-                                [159, 0x842722B0], # floodcombat_elite
-                                [159, 0x87FE2687], # flood_pureform_ranged
-                                [159, 0x884226CB], # flood_pureform_stalker
-                                [159, 0x8801268A], # flood_pureform_tank
+                                [135, 'flood_carrier'], # 0x82CF2158
+                                [159, 'floodcombat_elite'], # 0x842722B0
+                                [159, 'flood_pureform_ranged'], # 0x87FE2687
+                                [159, 'flood_pureform_stalker'], # 0x884226CB
+                                [159, 'flood_pureform_tank'], # 0x8801268A
                             ],
             "070_waste":    [
+                                [4099, 'hunter'],
+                                [4103, 'sentinel_aggressor'],
+                                [4103, 'sentinel_constructor'],
+                                [-8191, 'marine']
                             ],
             "100_citadel":  [
                             ],
@@ -508,7 +518,8 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [0, 'needler']   # needler doesn't show up for some reason
                             ],
             "040_voi":      [
-                                [0, 'missile_pod'],                
+                                [0, 'missile_pod'],            
+                                [0, 'plasma_cannon_undeployed'],
                                 [1, 0x90DD2F66], # hunter_particle_cannon
                                 [1, 0x94BA3343], # energy_blade
                             ],
@@ -520,10 +531,14 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [1, 0x8AAD2936], # sniper_rifle
                                 [1, 0x8B11299A], # rocket_launcher
                                 [1, 0xEFFE0E88], # machinegun_turret
+                                [1, 0x887F2708], # flood_ranged_weapon
                             ],
             "070_waste":    [
+                                [1, 0x8D7C2C05], # hunter_particle_cannon
                             ],
             "100_citadel":  [
+                                [1, 0x889D2726], # hunter_particle_cannon
+                                [1, 0x889D2726], # hunter_particle_cannon
                             ],
             "110_hc":       [
                             ],
@@ -551,7 +566,14 @@ class Halo3 (Game): # Handle hooking and process stuff
             "040_voi":      [
                                 [383, 'hunter_particle_cannon'],
                                 [7, 'energy_blade'],
-                                [383, 'shotgun']
+                                [383, 'shotgun'],
+                                [3, 'needler'],
+                                [3, 'spike_rifle'],
+                                [7, 'brute_shot'],
+                                [7, 'sniper_rifle'],
+                                [7, 'plasma_cannon'],
+                                [383, 'gravity_hammer'],
+                                [383, 'shotgun'],
                             ],
             "050_floodvoi": [
                                 [135, 'flamethrower'],
@@ -570,10 +592,10 @@ class Halo3 (Game): # Handle hooking and process stuff
 
         self.WEAPON_CLASSES = { # "archetype": [[list_regular],[list_valid_randoms]]
             "grunt":    [["plasma_pistol", "needler"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "brute_shot"]],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "brute_shot", "plasma_cannon"]],
 
             "grunt_h":  [["plasma_pistol", "needler", "spike_rifle", "flak_cannon"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "brute_shot"]],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "brute_shot", "plasma_cannon"]],
 
             "jackal":   [["plasma_pistol", "needler"], 
                          ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "beam_rifle", "plasma_rifle"]],
@@ -610,8 +632,9 @@ class Halo3 (Game): # Handle hooking and process stuff
             
             "flood_pureranged": [["flood_ranged_weapon"],["flood_ranged_weapon"]],
 
-            "sentinel": [["sentinel_gun"],["sentinel_gun"]]
-           
+            "sentinel": [["sentinel_gun"],["sentinel_gun"]],
+
+            "noweapon": [[""],[""]]
         }
         self.WEAPON_CLASSES_MAPPING = {
             "brute":                    "brute",
@@ -687,8 +710,6 @@ class Halo3 (Game): # Handle hooking and process stuff
     def get_character_palette(self, address): # Creates character palette object with the default values for the current level
         cur_index = 0
         palette = CharacterPalette(self.current_level, [])
-        
-        print(palette)
 
         while (self.p.read_string(address + (cur_index * 16), 4) == "rahc"):
             datum = bytearray(self.p.read_bytes((address + (cur_index * 16) + 12), 4))
@@ -742,13 +763,14 @@ class Halo3 (Game): # Handle hooking and process stuff
 
         return palette
 
-    def check_character_palette_bsp(self, datum): # Returns boolean for whether or not the datum is allowed in the current bsp
+    def check_character_palette_bsp(self, datum): # Returns boolean for whether or not the datum is allowed to be randomized in the current bsp
         tag = self.get_tag_string(datum)
         for val in self.CHARACTER_PALETTE_BSP[self.current_level]:
             if val[1] == tag: # If the tag has a condition
-                if val[0] > self.current_bsp: # If the designated BSP is higher than the current BSP return False
+                if val[0] > self.current_bsp and val[0] >= 0: # If the designated BSP is higher than the current BSP return False
                     return False
-
+                elif abs(val[0]) <= self.current_bsp and val[0] < 0: # If the designated BSP is at or lower than the current BSP return False (if BSP is negative, intended to prevent randos AFTER a bsp)
+                    return False
         return True # Return True if we loop through the whole thing and don't find the thing
 
     def check_weapon_palette_bsp(self, datum): # Returns boolean for whether or not the datum is allowed in the current bsp
@@ -756,10 +778,9 @@ class Halo3 (Game): # Handle hooking and process stuff
         for val in self.WEAPON_PALETTE_BSP[self.current_level]:
             if val[1] == tag: # If the tag has a condition
                 if val[0] > self.current_bsp: # If the designated BSP is higher than the current BSP return False
-                    print(val[0] + self.current_bsp)
-                    print(f"Disqualified {tag}")
                     return False
-
+                if abs(val[0]) <= self.current_bsp and val[0] < 0: # If the designated BSP is at or lower than the current BSP return False (if BSP is negative, intended to prevent randos AFTER a bsp)
+                    return False
         return True # Return True if we loop through the whole thing and don't find the thing
 
 
@@ -772,6 +793,9 @@ class Halo3 (Game): # Handle hooking and process stuff
             if palette.level != level:
                 return ctx
 
+            if not self.check_character_palette_bsp(ctx['Rax']): # if the guy shouldn't be randomized don't do it
+                return ctx
+
             if ctx['Rax'] in palette.values: # Only randomize if the original character datum is in the palette
                 while True: # Randomize until we get a character that's allowed in the current BSP
                     rng = random.choice(palette.values) # Select a random value from the CharacterPalette
@@ -779,6 +803,7 @@ class Halo3 (Game): # Handle hooking and process stuff
                         break
                         
                 ctx['Rax'] = rng
+                print(f"Character: {self.get_tag_string(rng)}({rng})")
                 self.known_randomizations.append([[ctx['R9'], ctx['Rbx']], ctx['Rax']])
         else:
             known = [i for i in self.known_randomizations if i[0] == [ctx['R9'], ctx['Rbx']]]
@@ -815,18 +840,17 @@ class Halo3 (Game): # Handle hooking and process stuff
 
             while True:
                 if character_weapon_class == "noweapon":
-                    rng = 0xFFFFFFFF
+                    rng = 0x00000000
                     break
                 # Keep rolling until the weapon is allowed for class and allowed in the current bsp
                 rng = random.choice(weapon_palette.values)
                 if self.get_tag_string(rng) in allowed_weapons and self.check_weapon_palette_bsp(rng):
                     break
                 if self.get_tag_string(rng) in allowed_weapons and not self.check_weapon_palette_bsp(rng) and len(allowed_weapons) < 2: # If the weapon isn't allowed in current bsp and it's the only choice just return default
-                    print(f"{character}")
-                    print(f"{self.get_tag_string(rng)}")
                     return ctx
 
             ctx['R8'] = rng
+            print(f"Weapon: {self.get_tag_string(rng)}({rng})")
             self.known_weapon_randomizations.append([ctx['R9'], ctx['R8']])
         else:
             known = [i for i in self.known_weapon_randomizations if i[0] == ctx['R9']]
