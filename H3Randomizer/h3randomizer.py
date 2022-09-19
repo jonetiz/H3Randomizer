@@ -9,6 +9,7 @@ from pymem.ressources.structure import MODULEINFO
 
 import H3Randomizer_CPP
 from mainwindow import *
+import logging
 
 class CharacterPalette:
     level: str = "" # level this palette is instantiated for
@@ -35,14 +36,18 @@ class CharacterPalette:
         if value in self.values:
             self.values.remove(value)
         else:
-            print(f"{value} is not in the CharacterPalette!")
+            msg = f"{value} is not in the CharacterPalette!"
+            print(msg)
+            logging.error(msg)
 
     def add(self, value: int):
         """Adds a value to the CharacterPalette"""
         if value not in self.values:
             self.values.append(value)
         else:
-            print(f"{value} is already in the CharacterPalette!")
+            msg = f"{value} is already in the CharacterPalette!"
+            print(msg)
+            logging.error(msg)
 
 class WeaponPalette:
     level: str = "" # level this palette is instantiated for
@@ -69,14 +74,18 @@ class WeaponPalette:
         if value in self.values:
             self.values.remove(value)
         else:
-            print(f"{value} is not in the WeaponPalette!")
+            msg = f"{value} is not in the WeaponPalette!"
+            print(msg)
+            logging.error(msg)
 
     def add(self, value: int):
         """Adds a value to the WeaponPalette"""
         if value not in self.values:
             self.values.append(value)
         else:
-            print(f"{value} is already in the WeaponPalette!")
+            msg = f"{value} is already in the WeaponPalette!"
+            print(msg)
+            logging.error(msg)
 
 
 class Game: # Abstraction for potential future randomizers
@@ -107,6 +116,8 @@ class Game: # Abstraction for potential future randomizers
 
     DISQUALIFIED_CHARACTERS = [] # Characters disqualified on all levels; automatically removed from character palette and will not be randomized
     DISQUALIFIED_WEAPONS = [] # Weapons disqualified on all levels; automatically removed from weapon palette and will not be randomized
+
+    DISQUALIFIED_AREAS = [] # just crows for now
 
     CHARACTER_PALETTE_MODIFICATIONS = {}
     CHARACTER_PALETTE_BSP = {} # Only randomize these ones after the designated BSP
@@ -141,7 +152,9 @@ class Game: # Abstraction for potential future randomizers
         try:
             out = self.p.read_string(ptr, 255)
         except:
-            print(f"ERROR: Could not get tag string of {hex(datum)}")
+            msg = f"Could not get tag string of {hex(datum)}"
+            print(msg)
+            logging.error(msg)
             return "" # return blank string to hopefully not cause issues lmao
 
         if only_last:
@@ -395,6 +408,8 @@ class Halo3 (Game): # Handle hooking and process stuff
         self.DISQUALIFIED_CHARACTERS = ["marine_johnson", "marine_johnson_halo", "marine_johnson_boss", "dervish", "miranda", "naval_officer", "marine_pilot", "truth", "monitor", "monitor_combat", "brute_phantom", "cortana", "flood_infection"]
         self.DISQUALIFIED_WEAPONS = ["primary_skull", "secondary_skull", "monitor_beam", "spartan_laser_overloaded"]
 
+        self.DISQUALIFIED_AREAS = [["020_base", 295]]
+
         self.CHARACTER_PALETTE_MODIFICATIONS = { # level_name : { [ [operation, datum | tagstring (removal only)], ... ] } operation is 0 or 1; 0 means remove, 1 means add
             "010_jungle":   [
                                 [1, 0x90EB2F59],    # elite
@@ -402,9 +417,9 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [1, 0x8E622CD0],    # brute_ultra
                             ],
             "020_base":     [
-                                [0, 'marine'],      # need to remove regular marines for now
-                                [0, 'bugger'],      
-                                [0, 'bugger_major'], # this could probably work but rather not deal with it
+                                #[0, 'marine'],      # need to remove regular marines for now
+                                #[0, 'bugger'],      
+                                #[0, 'bugger_major'], # this could probably work but rather not deal with it
                                 [0, 'hunter'],      # hunters in map file but not anywhere to be found
                                 [1, 0x96A93518],    # brute_captain_major
                                 [1, 0x96AA3519],    # brute_captain_ultra
@@ -469,6 +484,8 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [291, 'grunt'],
                                 [291, 'grunt_major'],
                                 [291, 'grunt_ultra'],
+                                [831, 'bugger'],
+                                [831, 'bugger_major'],
                             ],
             "030_outskirts":[
                             ],
@@ -824,6 +841,9 @@ class Halo3 (Game): # Handle hooking and process stuff
 
 
     def randomize_char(self, ctx): # Rax = Character Datum, Rbx/R15 = Squad Unit Index, R8 = Character Palette, R9/R14 = Base Squad Address (not consistent)
+        for area in self.DISQUALIFIED_AREAS:
+            if area[0] == self.current_level and area[1] == self.current_bsp:
+                return ctx
         if [ctx['R9'], ctx['Rbx']] not in (i[0] for i in self.known_randomizations):
             rng = -1
             level = self.current_level
@@ -842,7 +862,11 @@ class Halo3 (Game): # Handle hooking and process stuff
                         break
                         
                 ctx['Rax'] = rng
-                print(f"Character: {self.get_tag_string(rng)}({rng})")
+
+                msg = f"Character: {self.get_tag_string(rng)}({rng})"
+                print(msg)
+                logging.info(msg)
+
                 self.known_randomizations.append([[ctx['R9'], ctx['Rbx']], ctx['Rax']])
         else:
             known = [i for i in self.known_randomizations if i[0] == [ctx['R9'], ctx['Rbx']]]
@@ -866,7 +890,9 @@ class Halo3 (Game): # Handle hooking and process stuff
             try:
                 character_weapon_class = self.WEAPON_CLASSES_MAPPING[self.get_tag_string(character)]
             except:
-                print(f"Could not get character_weapon_class of {self.get_tag_string(character)}!")
+                msg = f"Could not get character_weapon_class of {self.get_tag_string(character)}!"
+                print(msg)
+                logging.error(msg)
                 return ctx
             
             allowed_weapons_normal = self.WEAPON_CLASSES[character_weapon_class][0]
@@ -889,7 +915,9 @@ class Halo3 (Game): # Handle hooking and process stuff
                     return ctx
 
             ctx['R8'] = rng
-            print(f"Weapon: {self.get_tag_string(rng)}({rng})")
+            msg = f"Weapon: {self.get_tag_string(rng)}({rng})"
+            print(msg)
+            logging.info(msg)
             self.known_weapon_randomizations.append([ctx['R9'], ctx['R8']])
         else:
             known = [i for i in self.known_weapon_randomizations if i[0] == ctx['R9']]
@@ -902,7 +930,7 @@ class Halo3 (Game): # Handle hooking and process stuff
         self.p.write_bytes(self.get_pointer(self.game_dll, [0x569092]), b'\x90\x90\x90\x90\x90\x90', 6) # enter_vehicle_immediate workaround
         self.p.write_bytes(self.get_pointer(self.game_dll, [0x39980C]), b'\x90\x90', 2) # vehicle_load_magic workaround
 
-        print("Attempting to obtain CharacterPalette...")
+        console_output("Attempting to obtain CharacterPalette...")
         while True:
             try:
                 table_offset_pointer = self.get_pointer(self.game_dll, self.special_offsets[1] + [0x3B4])
@@ -912,10 +940,10 @@ class Halo3 (Game): # Handle hooking and process stuff
                 continue
             else:
                 self.character_palette = self.get_character_palette(base_pointer + table_offset)
-                print(self.character_palette)
+                console_output(self.character_palette)
                 break
 
-        print("Attempting to obtain WeaponPalette...")
+        console_output("Attempting to obtain WeaponPalette...")
         while True:
             try:
                 table_offset_pointer = self.get_pointer(self.game_dll, self.special_offsets[1] + [0x12C])
@@ -925,14 +953,14 @@ class Halo3 (Game): # Handle hooking and process stuff
                 continue
             else:
                 self.weapon_palette = self.get_weapon_palette(base_pointer + table_offset)
-                print(self.weapon_palette)
+                console_output(self.weapon_palette)
                 break
 
     def main_loop(self, randomizer_obj_cpp, thread_debug_handling):
         super().main_loop(randomizer_obj_cpp, thread_debug_handling)
 
         if self.current_level != self.character_palette.level:
-            print("New level detected, getting new character palette!")
+            console_output("New level detected, getting new character palette!")
             while True:
                 try:
                     self.character_palette = None
@@ -943,11 +971,11 @@ class Halo3 (Game): # Handle hooking and process stuff
                     continue # We have to keep trying to get palette or else uh oh
                 else:
                     self.character_palette = self.get_character_palette(base_pointer + table_offset)
-                    print(self.character_palette)
+                    console_output(self.character_palette)
                     break
         
         if self.current_level != self.weapon_palette.level:
-            print("New level detected, getting new weapon palette!")
+            console_output("New level detected, getting new weapon palette!")
             while True:
                 try:
                     self.weapon_palette = None
@@ -958,7 +986,7 @@ class Halo3 (Game): # Handle hooking and process stuff
                     continue # We have to keep trying to get palette or else uh oh
                 else:
                     self.weapon_palette = self.get_weapon_palette(base_pointer + table_offset)
-                    print(self.weapon_palette)
+                    console_output(self.weapon_palette)
                     break
 
 g_current_randomizer: Game

@@ -2,6 +2,7 @@ from tkinter import *
 import os
 from tkinter.scrolledtext import ScrolledText
 import json
+import logging
 
 config_data = {
     "randomize_weapons": 0,
@@ -66,6 +67,7 @@ def frontend_gui():
 
 def console_output(text: str, nl: bool = True):
     print(text)
+    logging.info(text)
     main_window_output.config(state="normal")
     main_window_output.insert(END, f"{text}\n")
     main_window_output.config(state="disabled")

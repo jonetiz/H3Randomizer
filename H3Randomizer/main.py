@@ -7,7 +7,18 @@ from pymem import Pymem
 from mainwindow import *
 from h3randomizer import *
 
-def main(process: Pymem = None):
+import logging
+
+def main():
+    logging.basicConfig(
+        filename= f"logs/h3randomizer_{int(datetime.now().timestamp())}.log",
+        filemode='a',
+        format='%(asctime)s [%(levelname)s]: %(message)s',
+        datefmt='%H:%M:%S',
+        level=logging.DEBUG)
+
+    logging.info("Running H3 Randomizer")
+
     g_current_randomizer = Halo3("MCC-Win64-Shipping.exe", "halo3.dll")
 
 if __name__ == "__main__":
