@@ -424,6 +424,7 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [1, 0x92A3312C],    # elite_major
                             ],
             "050_floodvoi": [
+                                [0, 'worker']
                             ],
             "070_waste":    [
                             ],
@@ -471,6 +472,11 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [3, 0x910E2F97], # jackal_sniper
                             ],
             "050_floodvoi": [
+                                [135, 0x82CF2158], # flood_carrier
+                                [159, 0x842722B0], # floodcombat_elite
+                                [159, 0x87FE2687], # flood_pureform_ranged
+                                [159, 0x884226CB], # flood_pureform_stalker
+                                [159, 0x8801268A], # flood_pureform_tank
                             ],
             "070_waste":    [
                             ],
@@ -507,6 +513,13 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [1, 0x94BA3343], # energy_blade
                             ],
             "050_floodvoi": [
+                                [1, 0x90752EFE], # excavator
+                                [1, 0x8F412DCA], # needler
+                                [1, 0x8FB42E3D], # plasma_pistol
+                                [1, 0x90312EBA], # beam_rifle
+                                [1, 0x8AAD2936], # sniper_rifle
+                                [1, 0x8B11299A], # rocket_launcher
+                                [1, 0xEFFE0E88], # machinegun_turret
                             ],
             "070_waste":    [
                             ],
@@ -538,8 +551,12 @@ class Halo3 (Game): # Handle hooking and process stuff
             "040_voi":      [
                                 [383, 'hunter_particle_cannon'],
                                 [7, 'energy_blade'],
+                                [383, 'shotgun']
                             ],
             "050_floodvoi": [
+                                [135, 'flamethrower'],
+                                [159, 'plasma_cannon'],
+                                [191, 'machinegun_turret'],
                             ],
             "070_waste":    [
                             ],
@@ -579,7 +596,7 @@ class Halo3 (Game): # Handle hooking and process stuff
             "hunter":    [["hunter_particle_cannon"],
                          ["hunter_particle_cannon"]],
 
-            "elite":    [["needler", "plasma_pistol", "plasma_rifle", "covenant_carbine", "flak_cannon", "energy_blade", "beam_rifle", "spartan_laser"],
+            "elite":    [["needler", "plasma_pistol", "plasma_rifle", "covenant_carbine", "flak_cannon", "energy_blade", "beam_rifle", "spartan_laser", "flamethrower"],
                          ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "energy_blade", "sniper_rifle", "beam_rifle", "shotgun", "spartan_laser", "plasma_cannon", "machinegun_turret"]],
 
             "marine":   [["magnum", "assault_rifle", "battle_rifle", "smg", "rocket_launcher", "shotgun", "spartan_laser"],
@@ -588,8 +605,12 @@ class Halo3 (Game): # Handle hooking and process stuff
             "civilian": [["magnum"],
                          ["magnum"]],
 
-            "flood":    [[]
-                         []]
+            "flood":    [["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "plasma_rifle", "shotgun", "flamethrower", "gravity_hammer"],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "plasma_rifle", "shotgun", "flamethrower", "gravity_hammer"]],
+            
+            "flood_pureranged": [["flood_ranged_weapon"],["flood_ranged_weapon"]],
+
+            "sentinel": [["sentinel_gun"],["sentinel_gun"]]
            
         }
         self.WEAPON_CLASSES_MAPPING = {
