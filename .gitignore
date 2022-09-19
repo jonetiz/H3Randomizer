@@ -365,3 +365,4 @@ FodyWeavers.xsd
 /H3Randomizer/dist
 config.json
 /H3Randomizer/H3Randomizer_CPP.pyd
+*.zip
