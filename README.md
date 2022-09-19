@@ -14,7 +14,8 @@ ATTENTION: This program uses some very exerpimental or "hacky" methods to accomp
 1. Go to [Releases](https://github.com/jonetiz/H3randomizer/releases/)
 2. Download the latest or desired release
 3. Extract files from zip
-4. Run the .exe file and it should automatically hook to the game.
+4. Launch the game without Anti-Cheat
+5. Run the .exe file as Administrator and it should automatically hook to the game.
 
 # Project Contribution
 ## Requirements
