@@ -491,6 +491,16 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [-8191, 'marine']
                             ],
             "100_citadel":  [
+                                [1023, 'hunter'],
+                                [49151, 'sentinel_aggressor'],
+                                [49151, 'sentinel_aggressor_captain'],
+                                [-1023, 'bugger'],
+                                [1023, 'flood_carrier'],
+                                [1023, 'flood_combat_human'],
+                                [1023, 'floodcombat_elite'],
+                                [1023, 'floodcombat_brute'],
+                                [1023, 'flood_pureform_tank'],
+                                [1023, 'flood_pureform_stalker'],
                             ],
             "110_hc":       [
                             ],
@@ -537,8 +547,10 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [1, 0x8D7C2C05], # hunter_particle_cannon
                             ],
             "100_citadel":  [
+                                [0, 'plasma_cannon_undeployed'],
                                 [1, 0x889D2726], # hunter_particle_cannon
-                                [1, 0x889D2726], # hunter_particle_cannon
+                                [1, 0x972C35B5], # flood_ranged_weapon
+                                [1, 0x925330DC], # sentinel_gun
                             ],
             "110_hc":       [
                             ],
@@ -583,6 +595,10 @@ class Halo3 (Game): # Handle hooking and process stuff
             "070_waste":    [
                             ],
             "100_citadel":  [
+                                [831, 'plasma_cannon'],
+                                [31, 'gravity_hammer'],
+                                [1023, 'energy_blade'],
+                                [1023, 'rocket_launcher'],
                             ],
             "110_hc":       [
                             ],
@@ -604,13 +620,13 @@ class Halo3 (Game): # Handle hooking and process stuff
                          ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "beam_rifle"]],
 
             "brute":    [["spike_rifle", "excavator", "covenant_carbine", "plasma_rifle", "brute_shot"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun", "plasma_cannon", "machinegun_turret"]],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun", "plasma_cannon", "machinegun_turret", "sentinel_gun"]],
 
             "brute_hc": [["gravity_hammer"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun"]],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun", "sentinel_gun"]],
             
             "brute_cc": [["flak_cannon", "plasma_cannon"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun", "plasma_cannon", "machinegun_turret"]],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun", "plasma_cannon", "machinegun_turret", "sentinel_gun"]],
 
             "bugger":    [["plasma_pistol", "needler"],
                          ["plasma_pistol", "needler", "magnum", "spike_rifle", "smg", "excavator", "plasma_rifle"]],
