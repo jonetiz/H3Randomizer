@@ -1,8 +1,8 @@
 from tkinter import *
-import os
+import os, sys, json, logging
 from tkinter.scrolledtext import ScrolledText
-import json
-import logging
+
+VERSION = '0.1.2'
 
 config_data = {
     "randomize_weapons": 0,
@@ -11,9 +11,17 @@ config_data = {
 
 root = Tk()
 root.config(bg="#000")
-root.title("Halo 3 Randomizer (IN DEVELOPMENT)")
+root.title(f"Halo 3 Randomizer {VERSION}")
 root.geometry("640x480")
 root.minsize(640,480)
+
+iconfile = "icon.ico"
+if not hasattr(sys, "frozen"):
+    iconfile = os.path.join(os.path.dirname(__file__), iconfile) 
+else:  
+    iconfile = os.path.join(sys.prefix, iconfile)
+
+root.iconbitmap(iconfile)
 
 main_window_options_frame = Frame(root, width=640, height=300, background="#202020")
 main_window_options_frame.pack(expand=False, fill=BOTH)
@@ -47,7 +55,7 @@ def frontend_gui():
         try:
             json_object = json.load(f)
         except:
-            json_object = ""
+            json_object = '{"randomize_weapons": 0, "seed": "haloruns.com"}'
     
     try:
         config_data['randomize_weapons'] = json_object['randomize_weapons']

@@ -1,7 +1,3 @@
-# Halo 3 Randomizer for MCC
-# Swaps enemies and/or weapons (user defined) with random ones in the Halo 3
-# campaign.
-# Work in Progress
 from pymem import Pymem
 
 from mainwindow import *
@@ -19,7 +15,7 @@ def main():
         datefmt='%H:%M:%S',
         level=logging.DEBUG)
 
-    logging.info("Running H3 Randomizer")
+    logging.info(f"Starting H3 Randomizer, version {VERSION}")
 
     g_current_randomizer = Halo3("MCC-Win64-Shipping.exe", "halo3.dll")
 
