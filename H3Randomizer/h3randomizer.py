@@ -405,7 +405,7 @@ class Halo3 (Game): # Handle hooking and process stuff
 
         self.ALLOWED_LEVELS = ["010_jungle", "020_base", "030_outskirts", "040_voi", "050_floodvoi", "070_waste", "100_citadel", "110_hc", "120_halo"]
 
-        self.DISQUALIFIED_CHARACTERS = ["marine_johnson", "marine_johnson_halo", "marine_johnson_boss", "dervish", "miranda", "naval_officer", "marine_pilot", "truth", "monitor", "monitor_combat", "brute_phantom", "cortana", "flood_infection"]
+        self.DISQUALIFIED_CHARACTERS = ["marine_johnson", "marine_johnson_halo", "marine_johnson_boss", "dervish", "miranda", "naval_officer", "marine_pilot", "truth", "monitor", "monitor_combat", "brute_phantom", "cortana", "flood_infection", "scarab"]
         self.DISQUALIFIED_WEAPONS = ["primary_skull", "secondary_skull", "monitor_beam", "spartan_laser_overloaded"]
 
         self.DISQUALIFIED_AREAS = [["020_base", 295]]
@@ -441,7 +441,6 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [1, 0x8CF22B61],    # jackal_major
                             ],
             "040_voi":      [
-                                [0, 'scarab'],
                                 [1, 0x91BB3044],    # elite
                                 [1, 0x92A3312C],    # elite_major
                             ],
@@ -450,7 +449,6 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 #[0, 'flood_infection'] # having too many of these crashes the game and/or causes unintended behavior
                             ],
             "070_waste":    [
-                                [0, 'scarab']
                             ],
             "100_citadel":  [
                             ],
