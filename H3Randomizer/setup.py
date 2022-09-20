@@ -3,7 +3,7 @@ import py2exe
 
 setup(
     name="h3randomizer",
-    version="0.1.1",
+    version="0.1.1a",
     author="Jonathan Etiz",
     author_email="ac13xero@gmail.com",
     url="https://github.com/jonetiz/h3randomizer",
