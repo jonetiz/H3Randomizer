@@ -43,7 +43,7 @@ def on_closing():
     os._exit(0)
 
 def frontend_gui():
-    with open("config.json", "r+") as f:
+    with open("config.json", "w+") as f:
         try:
             json_object = json.load(f)
         except:

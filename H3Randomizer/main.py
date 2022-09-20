@@ -7,9 +7,11 @@ from pymem import Pymem
 from mainwindow import *
 from h3randomizer import *
 
-import logging
+import logging, os
 
 def main():
+    if not os.path.exists("logs"):
+        os.mkdir("logs")
     logging.basicConfig(
         filename= f"logs/h3randomizer_{int(datetime.now().timestamp())}.log",
         filemode='a',

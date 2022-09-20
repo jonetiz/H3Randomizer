@@ -36,6 +36,7 @@
     <Compile Include="h3randomizer.py" />
     <Compile Include="main.py" />
     <Compile Include="mainwindow.py" />
+    <Compile Include="setup.py" />
   </ItemGroup>
   <ItemGroup>
     <InterpreterReference Include="Global|PythonCore|3.10" />
