@@ -41,6 +41,19 @@ seed_setting = StringVar()
 seed_textbox = Entry(main_window_options_frame, bg="#202020", fg="#cccccc", width=40, state="normal", insertbackground="#cccccc", textvariable=seed_setting)
 seed_textbox.grid(column=2,row=0)
 
+disable_seed_textbox = True
+def configure_seed_box():
+    global disable_seed_textbox
+    if disable_seed_textbox:
+        seed_textbox.configure(state="disabled")
+    else:
+        seed_textbox.configure(state="normal")
+    disable_seed_textbox = not disable_seed_textbox
+
+seed_randomizer_setting = BooleanVar()
+seed_randomizer_checkbox = Checkbutton(main_window_options_frame, text="Randomize Seed? (Single Player)", variable=seed_randomizer_setting, onvalue=1, offvalue=0, bg="#202020", fg="#cccccc", selectcolor="#202020", activebackground="#202020", activeforeground="#cccccc", command=lambda:configure_seed_box())
+seed_randomizer_checkbox.grid(column=3,row=0)
+
 def on_closing():
     print("Main window closed; Shutting down Halo 3 Randomizer.")
     
