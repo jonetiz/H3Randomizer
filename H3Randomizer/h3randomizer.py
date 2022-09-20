@@ -322,7 +322,7 @@ class Game: # Abstraction for potential future randomizers
                     has_started_loop = True
                     if initial_loop:
                         initial_loop = False
-                        random.seed(seed_setting.get()) # Set the seed based on what user has set in GUI
+                        random.seed(seed_setting.get() if not seed_randomizer_setting.get() else datetime.now()) # Set the seed based on what user has set in GUI
                         disable_frame(main_window_options_frame) # Prevent user from modifying seed once we begin randomizing
                         self.initial_loop(randomizer_obj_cpp, thread_debug_handling)
                     else:
@@ -342,6 +342,7 @@ class Game: # Abstraction for potential future randomizers
                         console_output("NOTE: Restarting the game is recommended due to potential instability.")
                         console_output(f"--- HALO 3 RANDOMIZER TERMINATED | {datetime.now().strftime('%d%b%Y %H:%M:%S').upper()} ---\n")
                         enable_frame(main_window_options_frame) # Allow user to modify seed once we stop randomizing
+                        if seed_randomizer_setting.get(): seed_textbox.configure(state="disabled")
                         time.sleep(5) # Wait 5 seconds to try to prevent cases where it will hook again right as app closes
                         self.hooking_loop()
                     if waiting_for_game_msg:
@@ -373,7 +374,7 @@ class Game: # Abstraction for potential future randomizers
         config_data['seed'] = seed_setting.get()
 
         self.cpp_accessor.create_randomizer(self.p.process_id)
-        console_output(f"Created randomizer! Seed: {seed_setting.get()}")
+        console_output(f"Created randomizer! Seed: {seed_setting.get() if not seed_randomizer_setting.get() else 'R A N D O M I Z E D'}")
         spawn_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.charspawn_offsets), self.randomize_char)
         randomizer_obj_cpp.set_breakpoint(0, spawn_breakpoint) # Set breakpoint a H3Randomizer.breakpoints[0] in Dr0 register
         console_output("Set character spawn breakpoint!")
