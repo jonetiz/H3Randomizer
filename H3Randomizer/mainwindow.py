@@ -56,12 +56,19 @@ seed_randomizer_checkbox = Checkbutton(main_window_options_frame, text="Randomiz
 seed_randomizer_checkbox.grid(column=3,row=0)
 
 def on_closing():
-    print("Main window closed; Shutting down Halo 3 Randomizer.")
+    msg = "Main window closed; Shutting down Halo 3 Randomizer."
+    print(msg)
+    logging.info(msg)
     
+    # Make sure we have config_data correct
+    config_data['randomize_weapons'] = weapon_randomizer_setting.get()
+    config_data['seed'] = seed_setting.get()
+    config_data['randomize_seed'] = seed_randomizer_setting.get()
+
     # Save config on exit
     with open("config.json", "w+") as f:
         json.dump(config_data, f)
-    
+
     os._exit(0)
 
 def frontend_gui():
@@ -70,7 +77,7 @@ def frontend_gui():
             json_object = json.load(f)
         except:
             json_object = '{"randomize_weapons": 0, "seed": "haloruns.com", "randomize_seed": false}'
-    
+
     try:
         config_data['randomize_weapons'] = json_object['randomize_weapons']
         if json_object['randomize_weapons'] != 0:

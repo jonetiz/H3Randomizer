@@ -309,6 +309,11 @@ class Game: # Abstraction for potential future randomizers
         randomizer_obj_cpp = None # Define randomizer_obj_cpp 
         
         while True:
+            # Continually set config values
+            config_data['randomize_weapons'] = weapon_randomizer_setting.get()
+            config_data['seed'] = seed_setting.get()
+            config_data['randomize_seed'] = seed_randomizer_setting.get()
+
             if self.check_hook() and self.check_module(self.dll_name): # Continually ensure we have a handle on process and DLL
 
                 self.update_current_level()
@@ -369,10 +374,6 @@ class Game: # Abstraction for potential future randomizers
         return ctx
 
     def initial_loop(self, randomizer_obj_cpp, thread_debug_handling):
-        # Set config values
-        config_data['randomize_weapons'] = weapon_randomizer_setting.get()
-        config_data['seed'] = seed_setting.get()
-
         self.cpp_accessor.create_randomizer(self.p.process_id)
         console_output(f"Created randomizer! Seed: {seed_setting.get() if not seed_randomizer_setting.get() else 'R A N D O M I Z E D'}")
         spawn_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.charspawn_offsets), self.randomize_char)
