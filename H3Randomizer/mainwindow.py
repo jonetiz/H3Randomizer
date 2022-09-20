@@ -2,7 +2,7 @@ from tkinter import *
 import os, sys, json, logging
 from tkinter.scrolledtext import ScrolledText
 
-VERSION = '0.1.2'
+VERSION = '0.1.2a'
 
 config_data = {
     "randomize_weapons": 0,
