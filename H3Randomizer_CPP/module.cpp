@@ -11,7 +11,7 @@ namespace py = pybind11;
 DWORD UpdateBreakpointsOnThreads(DWORD dwProcessID, DWORD64 addr, int index) // Walk all threads and set Dr0-Dr3 breakpoints as designated by respective params addr1 - addr4
 {
 	THREADENTRY32 te = { sizeof(THREADENTRY32) };
-	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPALL, dwProcessID);
+	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, dwProcessID);
 
 	if (Thread32First(hSnapshot, &te))
 		while (Thread32Next(hSnapshot, &te))
