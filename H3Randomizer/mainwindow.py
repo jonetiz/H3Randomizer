@@ -6,7 +6,8 @@ VERSION = '0.1.2'
 
 config_data = {
     "randomize_weapons": 0,
-    "seed": "haloruns.com"
+    "seed": "haloruns.com",
+    "randomize_seed": False
 }
 
 root = Tk()
@@ -38,7 +39,7 @@ seed_label = Label(main_window_options_frame, text="Seed: ", bg="#202020", fg="#
 seed_label.grid(column=1, row=0)
 
 seed_setting = StringVar()
-seed_textbox = Entry(main_window_options_frame, bg="#202020", fg="#cccccc", width=40, state="normal", insertbackground="#cccccc", textvariable=seed_setting)
+seed_textbox = Entry(main_window_options_frame, bg="#202020", fg="#cccccc", disabledbackground="#101010", disabledforeground="#404040", width=40, state="normal", insertbackground="#cccccc", textvariable=seed_setting)
 seed_textbox.grid(column=2,row=0)
 
 disable_seed_textbox = True
@@ -68,7 +69,7 @@ def frontend_gui():
         try:
             json_object = json.load(f)
         except:
-            json_object = '{"randomize_weapons": 0, "seed": "haloruns.com"}'
+            json_object = '{"randomize_weapons": 0, "seed": "haloruns.com", "randomize_seed": false}'
     
     try:
         config_data['randomize_weapons'] = json_object['randomize_weapons']
@@ -80,6 +81,14 @@ def frontend_gui():
     try:
         config_data['seed'] = json_object['seed']
         seed_textbox.insert(0, config_data["seed"])
+    except:
+        pass
+
+    try:
+        config_data['randomize_seed'] = json_object['randomize_seed']
+        if json_object['randomize_seed'] != 0:
+            seed_randomizer_checkbox.select()
+            configure_seed_box()
     except:
         pass
     
