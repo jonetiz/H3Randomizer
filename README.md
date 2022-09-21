@@ -31,6 +31,15 @@ ATTENTION: This program uses some very exerpimental or "hacky" methods to accomp
 
 ## Development Process
 Having Visual Studio 2022 with the Python and C++ development workflows and all other requirements, simply open the visual studio solution. I've only set things up for Debug configuration, and x64 is required.
+### Include Paths
+The H3Randomizer_CPP visual studio project has some required include directories that should work if your confgiuration is similar to mine (Python 3.10 installed in %LOCALAPPDATA%/Programs/Python310), however there's always a chance that it won't. Below is a list of things to double-check in the H3Randomizer_CPP Project Properties.
+
+Configuration Properties > C/C++ > General > Additional Include Directories:
+- `{PythonInstallDir}\include`
+- pybind11\include (if installed with pip, should be in `{PythonInstallDir}\Lib\site-packages\pybind11\include`)
+
+Linker > General > Additional Library Directories:
+- `{PythonInstallDir}\libs`
 
 ## Build Instructions
 1. Right-click "H3Randomizer_CPP in the Solution Explorer and click "Build".
