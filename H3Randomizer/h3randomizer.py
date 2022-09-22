@@ -412,6 +412,15 @@ class Halo3 (Game): # Handle hooking and process stuff
 
         self.DISQUALIFIED_AREAS = [["020_base", 295]]
 
+        self.DISQUALIFIED_SQUADS =  {
+                                        "070_waste":    [
+                                                            0x1CB3ECE8C
+                                                        ],
+                                        "100_citadel":  [
+                                                            0x1CB1BBA80
+                                                        ]
+                                    }
+
         self.CHARACTER_PALETTE_MODIFICATIONS = { # level_name : { [ [operation, datum | tagstring (removal only)], ... ] } operation is 0 or 1; 0 means remove, 1 means add
             "010_jungle":   [
                                 [1, 0x90EB2F59],    # elite
@@ -511,13 +520,13 @@ class Halo3 (Game): # Handle hooking and process stuff
             "070_waste":    [
                                 [4099, 'hunter'],
                                 [4103, 'sentinel_aggressor'],
-                                [4103, 'sentinel_constructor'],
-                                [-8191, 'marine']
+                                [4103, 'sentinel_constructor']
                             ],
             "100_citadel":  [
                                 [1023, 'hunter'],
                                 [49151, 'sentinel_aggressor'],
                                 [49151, 'sentinel_aggressor_captain'],
+                                [1023, 'bugger'],
                                 [-1023, 'bugger'],
                                 [1023, 'flood_carrier'],
                                 [1023, 'flood_combat_human'],
@@ -825,7 +834,7 @@ class Halo3 (Game): # Handle hooking and process stuff
             if val[1] == tag: # If the tag has a condition
                 if val[0] > self.current_bsp and val[0] >= 0: # If the designated BSP is higher than the current BSP return False
                     return False
-                elif abs(val[0]) <= self.current_bsp and val[0] < 0: # If the designated BSP is at or lower than the current BSP return False (if BSP is negative, intended to prevent randos AFTER a bsp)
+                elif abs(val[0]) < self.current_bsp and val[0] < 0: # If the designated BSP is at or lower than the current BSP return False (if BSP is negative, intended to prevent randos AFTER a bsp)
                     return False
         return True # Return True if we loop through the whole thing and don't find the thing
 
@@ -840,13 +849,18 @@ class Halo3 (Game): # Handle hooking and process stuff
         return True # Return True if we loop through the whole thing and don't find the thing
 
 
-    def randomize_char(self, ctx): # Rax = Character Datum, Rbx/R15 = Squad Unit Index, R8 = Character Palette, R9/R14 = Base Squad Address (not consistent)
+    def randomize_char(self, ctx): # Rax = Character Datum, Rbx/R15 = Squad Unit Index, R8 = Character Palette, R9/R14 = Base Squad Offset relative to R10/Scenario Ptr
+        level = self.current_level
+        for squad in self.DISQUALIFIED_SQUADS[level]:
+            if ctx['R14'] - ctx['R10'] == squad: # If Base Squad offset is in DISQUALIFIED_SQUADS, don't randomize
+                return ctx
+
         for area in self.DISQUALIFIED_AREAS:
             if area[0] == self.current_level and area[1] == self.current_bsp:
                 return ctx
-        if [ctx['R9'], ctx['Rbx']] not in (i[0] for i in self.known_randomizations):
+
+        if [ctx['R14'] - ctx['R10'], ctx['Rbx']] not in (i[0] for i in self.known_randomizations):
             rng = -1
-            level = self.current_level
 
             palette = self.character_palette
             if palette.level != level:
@@ -867,9 +881,9 @@ class Halo3 (Game): # Handle hooking and process stuff
                 print(msg)
                 logging.info(msg)
 
-                self.known_randomizations.append([[ctx['R9'], ctx['Rbx']], ctx['Rax']])
+                self.known_randomizations.append([[ctx['R14'] - ctx['R10'], ctx['Rbx']], ctx['Rax']])
         else:
-            known = [i for i in self.known_randomizations if i[0] == [ctx['R9'], ctx['Rbx']]]
+            known = [i for i in self.known_randomizations if i[0] == [(ctx['R14'] - ctx['R10']), ctx['Rbx']]]
             ctx['Rax'] = known[0][1]
 
         return ctx # Must return ctx no matter what
