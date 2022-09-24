@@ -7,7 +7,7 @@ from pymem import Pymem
 import pymem.exception
 from pymem.ressources.structure import MODULEINFO
 
-import H3Randomizer_CPP
+import PyDebugger_CPP
 from mainwindow import *
 import logging
 
@@ -306,7 +306,7 @@ class Game: # Abstraction for potential future randomizers
         in_game_msg: bool = True
         initial_loop: bool = True
         thread_debug_handling = threading.Thread(target=self.start_debug_handling)
-        randomizer_obj_cpp = None # Define randomizer_obj_cpp 
+        debugger_obj_cpp = None # Define debugger_obj_cpp 
         
         while True:
             # Continually set config values
@@ -323,24 +323,24 @@ class Game: # Abstraction for potential future randomizers
                     if in_game_msg:
                         console_output(f"Valid level detected ({self.current_level})")
                         in_game_msg = False
-                    randomizer_obj_cpp = self.cpp_accessor.access_randomizer() # Refresh randomizer_obj_cpp
+                    debugger_obj_cpp = self.cpp_accessor.access_debugger() # Refresh debugger_obj_cpp
                     has_started_loop = True
                     if initial_loop:
                         initial_loop = False
                         random.seed(seed_setting.get() if not seed_randomizer_setting.get() else datetime.now()) # Set the seed based on what user has set in GUI
                         disable_frame(main_window_options_frame) # Prevent user from modifying seed once we begin randomizing
-                        self.initial_loop(randomizer_obj_cpp, thread_debug_handling)
+                        self.initial_loop(debugger_obj_cpp, thread_debug_handling)
                     else:
 
                         # Main Loop
-                        self.main_loop(randomizer_obj_cpp, thread_debug_handling) 
+                        self.main_loop(debugger_obj_cpp, thread_debug_handling) 
 
 
                 else: # If we're not in game keep looping until we're back
                     if has_started_loop: # Reset DLL if we already started loop
                         self.p = None
                         self.game_dll = None
-                        randomizer_obj_cpp.stop()
+                        debugger_obj_cpp.stop()
                         if thread_debug_handling.is_alive():
                             thread_debug_handling.join()
                         console_output("Not currently in-game, destroying randomizer. Retrying hook in a few seconds...")
@@ -359,7 +359,7 @@ class Game: # Abstraction for potential future randomizers
                 self.p = None
                 self.game_dll = None
                 if has_started_loop:
-                    randomizer_obj_cpp.stop()
+                    debugger_obj_cpp.stop()
                     thread_debug_handling.join()
                 console_output(f"Lost handle to {self.exe_name} and/or {self.dll_name}. Retrying hook in a few seconds...")
                 console_output(f"--- HALO 3 RANDOMIZER TERMINATED | {datetime.now().strftime('%d%b%Y %H:%M:%S').upper()} ---\n")
@@ -373,30 +373,30 @@ class Game: # Abstraction for potential future randomizers
     def randomize_char_weapon(self, ctx): # This needs to be delegated to subclass
         return ctx
 
-    def initial_loop(self, randomizer_obj_cpp, thread_debug_handling):
-        self.cpp_accessor.create_randomizer(self.p.process_id)
+    def initial_loop(self, debugger_obj_cpp, thread_debug_handling):
+        self.cpp_accessor.create_debugger(self.p.process_id)
         console_output(f"Created randomizer! Seed: {seed_setting.get() if not seed_randomizer_setting.get() else 'R A N D O M I Z E D'}")
         spawn_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.charspawn_offsets), self.randomize_char)
-        randomizer_obj_cpp.set_breakpoint(0, spawn_breakpoint) # Set breakpoint a H3Randomizer.breakpoints[0] in Dr0 register
+        debugger_obj_cpp.create_hardware_breakpoint(0, spawn_breakpoint) # Set hardware breakpoint at H3Randomizer.breakpoints[0] in Dr0 register
         console_output("Set character spawn breakpoint!")
-        weapon_randomizer_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.charweapon_offsets), self.randomize_char_weapon)
-        randomizer_obj_cpp.set_breakpoint(1, weapon_randomizer_breakpoint) # Set breakpoint a H3Randomizer.breakpoints[0] in Dr0 register
+        weapon_randomizer_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.charweapon_offsets), 0x45, self.randomize_char_weapon)
+        debugger_obj_cpp.create_software_breakpoint(weapon_randomizer_breakpoint) # Set software breakpoint
         console_output("Set character spawn weapon breakpoint!")
         thread_debug_handling.start()
 
-    def main_loop(self, randomizer_obj_cpp, thread_debug_handling):
+    def main_loop(self, debugger_obj_cpp, thread_debug_handling):
         # Do main loop stuff
         pass
 
 
     def start_debug_handling(self):
-        randomizer = self.cpp_accessor.access_randomizer()
+        randomizer = self.cpp_accessor.access_debugger()
         randomizer.start_handling_breakpoints()
 
 class Halo3 (Game): # Handle hooking and process stuff
     
     def __init__(self, exe, dll):
-        self.cpp_accessor = H3Randomizer_CPP
+        self.cpp_accessor = PyDebugger_CPP
         self.charspawn_offsets = [0x55C2E1] # set character datum @ Rax
         #self.charspawn_offsets = [0x55C2D9] # set character palette index @ Rax
         self.charweapon_offsets = [0x55331F]
@@ -947,8 +947,8 @@ class Halo3 (Game): # Handle hooking and process stuff
 
         return ctx # Must return ctx no matter what
 
-    def initial_loop(self, randomizer_obj_cpp, thread_debug_handling):
-        super().initial_loop(randomizer_obj_cpp, thread_debug_handling)
+    def initial_loop(self, debugger_obj_cpp, thread_debug_handling):
+        super().initial_loop(debugger_obj_cpp, thread_debug_handling)
         self.p.write_bytes(self.get_pointer(self.game_dll, [0x569092]), b'\x90\x90\x90\x90\x90\x90', 6) # enter_vehicle_immediate workaround
         self.p.write_bytes(self.get_pointer(self.game_dll, [0x39980C]), b'\x90\x90', 2) # vehicle_load_magic workaround
 
@@ -978,8 +978,8 @@ class Halo3 (Game): # Handle hooking and process stuff
                 console_output(self.weapon_palette)
                 break
 
-    def main_loop(self, randomizer_obj_cpp, thread_debug_handling):
-        super().main_loop(randomizer_obj_cpp, thread_debug_handling)
+    def main_loop(self, debugger_obj_cpp, thread_debug_handling):
+        super().main_loop(debugger_obj_cpp, thread_debug_handling)
 
         if self.current_level != self.character_palette.level:
             console_output("New level detected, getting new character palette!")
