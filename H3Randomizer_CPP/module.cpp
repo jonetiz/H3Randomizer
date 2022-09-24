@@ -316,15 +316,13 @@ class DebugHandler
 						{
 							for (Breakpoint& breakpoint : DebugHandler::swBreakpoints) { // Foreach software breakpoint in array check if this is the one
 								if (dbgEvent.u.Exception.ExceptionRecord.ExceptionAddress == (void*)breakpoint.address) {
-
+									DebugHandler::RemoveSoftwareBreakpoint(breakpoint);
 									if (hThread = OpenThread(THREAD_ALL_ACCESS, false, dbgEvent.dwThreadId))
 									{
 										dbgEvent.u.Exception.ExceptionRecord.ExceptionFlags = 0;
 
 										CONTEXT ctx;
 										ctx.ContextFlags = CONTEXT_FULL;
-
-										DebugHandler::RemoveSoftwareBreakpoint(breakpoint);
 
 										// get the context of the thread
 										GetThreadContext(hThread, &ctx);
@@ -333,16 +331,17 @@ class DebugHandler
 										CONTEXT callback = breakpoint.CallbackWithContext(ctx);
 
 										ctx = callback;
-
+										// Go back an instruction to run the proper code
+										ctx.Rip--;
+										// Set the breakpoint back and continue
 										ctx.EFlags |= 0x10000;
 
 										// set the context so our changes are made
 										SetThreadContext(hThread, &ctx);
 
 										BOOL bCloseHandle = CloseHandle(&hThread);
-
-										bContinueDebugging = true;
 									}
+									bContinueDebugging = true;
 								}
 							}
 						}
