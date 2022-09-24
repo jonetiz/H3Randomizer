@@ -661,19 +661,19 @@ class Halo3 (Game): # Handle hooking and process stuff
                          ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "brute_shot", "plasma_cannon"]],
 
             "jackal":   [["plasma_pistol", "needler"], 
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "beam_rifle", "plasma_rifle"]],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "beam_rifle", "plasma_rifle", "sniper_rifle"]],
 
             "jackal_s": [["covenant_carbine", "beam_rifle"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "beam_rifle"]],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "beam_rifle", "sniper_rifle"]],
 
             "brute":    [["spike_rifle", "excavator", "covenant_carbine", "plasma_rifle", "brute_shot"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun", "plasma_cannon", "machinegun_turret", "sentinel_gun"]],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun", "plasma_cannon", "machinegun_turret", "sentinel_gun", "sniper_rifle"]],
 
             "brute_hc": [["gravity_hammer"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun", "sentinel_gun"]],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun", "sentinel_gun", "sniper_rifle"]],
             
             "brute_cc": [["flak_cannon", "plasma_cannon"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun", "plasma_cannon", "machinegun_turret", "sentinel_gun"]],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun", "plasma_cannon", "machinegun_turret", "sentinel_gun", "sniper_rifle"]],
 
             "bugger":    [["plasma_pistol", "needler"],
                          ["plasma_pistol", "needler", "magnum", "spike_rifle", "smg", "excavator", "plasma_rifle"]],
@@ -684,14 +684,14 @@ class Halo3 (Game): # Handle hooking and process stuff
             "elite":    [["needler", "plasma_pistol", "plasma_rifle", "covenant_carbine", "flak_cannon", "energy_blade", "beam_rifle", "spartan_laser", "flamethrower"],
                          ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "energy_blade", "sniper_rifle", "beam_rifle", "shotgun", "spartan_laser", "plasma_cannon", "machinegun_turret"]],
 
-            "marine":   [["magnum", "assault_rifle", "battle_rifle", "smg", "rocket_launcher", "shotgun", "spartan_laser"],
+            "marine":   [["magnum", "assault_rifle", "battle_rifle", "smg", "rocket_launcher", "shotgun", "spartan_laser", "sniper_rifle"],
                          ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "sniper_rifle", "flak_cannon", "rocket_launcher", "spartan_laser"]],
             
             "civilian": [["magnum", "null"],
-                         ["magnum", "null"]],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "sniper_rifle", "flak_cannon", "rocket_launcher", "spartan_laser"]],
 
-            "flood":    [["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "plasma_rifle", "shotgun", "flamethrower", "gravity_hammer", "null"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "plasma_rifle", "shotgun", "flamethrower", "gravity_hammer", "null"]],
+            "flood":    [["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "sniper_rifle", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "plasma_rifle", "shotgun", "flamethrower", "gravity_hammer", "null"],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "sniper_rifle", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "plasma_rifle", "shotgun", "flamethrower", "gravity_hammer", "null"]],
             
             "flood_pureranged": [["flood_ranged_weapon"],["flood_ranged_weapon"]],
 
