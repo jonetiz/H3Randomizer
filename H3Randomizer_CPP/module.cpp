@@ -7,6 +7,8 @@
 #include <winternl.h>
 #include <thread>
 
+using namespace std::chrono;
+
 namespace py = pybind11;
 
 DWORD UpdateBreakpointsOnThreads(DWORD dwProcessID, DWORD64 addr, int index) // Walk all threads and set Dr0-Dr3 breakpoints as designated by respective params addr1 - addr4
@@ -81,7 +83,7 @@ BOOL SetDebugPrivilege(BOOL State)
 	return CloseHandle(hToken);
 }
 
-class PythonContext { // Class used to hold a CONTEXT object and convert to/from python dictionary
+class PythonContext { // Class used to hold a CONTEXT object and convert to/from python dictionary (dictionaries are faster than classes, which is why it's used)
 public:
 	CONTEXT ctxOriginal;
 	py::dict ctxPython;
@@ -106,25 +108,25 @@ public:
 		ctxPython["R14"] = ctx.R14;
 		ctxPython["R15"] = ctx.R15;
 	}
-	CONTEXT ConvertFromPython(py::dict ctxPy) {
+	CONTEXT ContextFromDict() {
 		CONTEXT ctxOut = ctxOriginal; // Set ctxOut to same values as ctxOriginal
 
-		ctxOut.Rax = ctxPy["Rax"].cast<uint64_t>();
-		ctxOut.Rcx = ctxPy["Rcx"].cast<uint64_t>();
-		ctxOut.Rdx = ctxPy["Rdx"].cast<uint64_t>();
-		ctxOut.Rbx = ctxPy["Rbx"].cast<uint64_t>();
-		ctxOut.Rsp = ctxPy["Rsp"].cast<uint64_t>();
-		ctxOut.Rbp = ctxPy["Rbp"].cast<uint64_t>();
-		ctxOut.Rsi = ctxPy["Rsi"].cast<uint64_t>();
-		ctxOut.Rdi = ctxPy["Rdi"].cast<uint64_t>();
-		ctxOut.R8 = ctxPy["R8"].cast<uint64_t>();
-		ctxOut.R9 = ctxPy["R9"].cast<uint64_t>();
-		ctxOut.R10 = ctxPy["R10"].cast<uint64_t>();
-		ctxOut.R11 = ctxPy["R11"].cast<uint64_t>();
-		ctxOut.R12 = ctxPy["R12"].cast<uint64_t>();
-		ctxOut.R13 = ctxPy["R13"].cast<uint64_t>();
-		ctxOut.R14 = ctxPy["R14"].cast<uint64_t>();
-		ctxOut.R15 = ctxPy["R15"].cast<uint64_t>();
+		ctxOut.Rax = ctxPython["Rax"].cast<uint64_t>();
+		ctxOut.Rcx = ctxPython["Rcx"].cast<uint64_t>();
+		ctxOut.Rdx = ctxPython["Rdx"].cast<uint64_t>();
+		ctxOut.Rbx = ctxPython["Rbx"].cast<uint64_t>();
+		ctxOut.Rsp = ctxPython["Rsp"].cast<uint64_t>();
+		ctxOut.Rbp = ctxPython["Rbp"].cast<uint64_t>();
+		ctxOut.Rsi = ctxPython["Rsi"].cast<uint64_t>();
+		ctxOut.Rdi = ctxPython["Rdi"].cast<uint64_t>();
+		ctxOut.R8 = ctxPython["R8"].cast<uint64_t>();
+		ctxOut.R9 = ctxPython["R9"].cast<uint64_t>();
+		ctxOut.R10 = ctxPython["R10"].cast<uint64_t>();
+		ctxOut.R11 = ctxPython["R11"].cast<uint64_t>();
+		ctxOut.R12 = ctxPython["R12"].cast<uint64_t>();
+		ctxOut.R13 = ctxPython["R13"].cast<uint64_t>();
+		ctxOut.R14 = ctxPython["R14"].cast<uint64_t>();
+		ctxOut.R15 = ctxPython["R15"].cast<uint64_t>();
 
 		return ctxOut;
 	}
@@ -149,16 +151,16 @@ public:
 		callback = cb; // What to do when hit
 		originalByte = byOriginal; // The original byte of the instruction (for software breakpoints)
 	}
-	CONTEXT CallbackWithContext(CONTEXT ctx) { // Run callback() passing context of breakpoint as arg and return the altered context
+	CONTEXT CallbackWithContext(CONTEXT& ctx) { // Run callback() passing context of breakpoint as arg and return the altered context
 
 		// Begin python interpretation
 		py::gil_scoped_acquire acquire;
 
-		PythonContext converter = PythonContext(ctx);
+		PythonContext ctxPassed = PythonContext(ctx);
 
-		py::dict ctxPassed = converter.ctxPython;
-		py::dict cb = callback(ctxPassed);
-		CONTEXT ctxRecieved = converter.ConvertFromPython(cb);
+		callback(&ctxPassed.ctxPython);
+
+		CONTEXT ctxRecieved = ctxPassed.ContextFromDict();
 
 		// End python interpretation
 		py::gil_scoped_release release;
