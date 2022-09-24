@@ -413,12 +413,20 @@ class Halo3 (Game): # Handle hooking and process stuff
         self.DISQUALIFIED_AREAS = [["020_base", 295]]
 
         self.DISQUALIFIED_SQUADS =  {
+                                        "010_jungle":   [],
+                                        "020_base":   [],
+                                        "030_outskirts":   [],
+                                        "040_voi":   [],
+                                        "050_floodvoi":   [],
                                         "070_waste":    [
                                                             0x1CB3ECE8C
                                                         ],
                                         "100_citadel":  [
                                                             0x1CB1BBA80
-                                                        ]
+                                                        ],
+                                        
+                                        "110_hc":   [],
+                                        "120_halo":   []
                                     }
 
         self.CHARACTER_PALETTE_MODIFICATIONS = { # level_name : { [ [operation, datum | tagstring (removal only)], ... ] } operation is 0 or 1; 0 means remove, 1 means add
