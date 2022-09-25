@@ -7,11 +7,11 @@ from pymem import Pymem
 import pymem.exception
 from pymem.ressources.structure import MODULEINFO
 
-import H3Randomizer_CPP
+import PyDebugger_CPP
 from mainwindow import *
 import logging
 
-class CharacterPalette:
+class Palette:
     level: str = "" # level this palette is instantiated for
     values = [] # list of values as int
     
@@ -22,45 +22,7 @@ class CharacterPalette:
             self.values.append(int(val)) # Add each value to the values array as an integer
 
     def __repr__(self):
-        out = f"CharacterPalette(level: {self.level}, values({len(self.values)}): {self.values_as_hex()})"
-        return out
-
-    def values_as_hex(self): # Get a list of the values as hexadecimal strings
-        out = []
-        for val in self.values:
-            out.append(hex(val).upper().replace('X', 'x'))
-        return out
-
-    def remove(self, value: int):
-        """Removes a value from the CharacterPalette"""
-        if value in self.values:
-            self.values.remove(value)
-        else:
-            msg = f"{value} is not in the CharacterPalette!"
-            print(msg)
-            logging.error(msg)
-
-    def add(self, value: int):
-        """Adds a value to the CharacterPalette"""
-        if value not in self.values:
-            self.values.append(value)
-        else:
-            msg = f"{value} is already in the CharacterPalette!"
-            print(msg)
-            logging.error(msg)
-
-class WeaponPalette:
-    level: str = "" # level this palette is instantiated for
-    values = [] # list of values as int
-    
-    def __init__(self, l, vals):
-        self.values = []
-        self.level = l
-        for val in vals:
-            self.values.append(int(val)) # Add each value to the values array as an integer
-
-    def __repr__(self):
-        out = f"WeaponPalette(level: {self.level}, values({len(self.values)}): {self.values_as_hex()})"
+        out = f"Palette(level: {self.level}, values({len(self.values)}): {self.values_as_hex()})"
         return out
 
     def values_as_hex(self): # Get a list of the values as hexadecimal strings
@@ -74,7 +36,7 @@ class WeaponPalette:
         if value in self.values:
             self.values.remove(value)
         else:
-            msg = f"{value} is not in the WeaponPalette!"
+            msg = f"{value} is not in the Palette!"
             print(msg)
             logging.error(msg)
 
@@ -83,7 +45,7 @@ class WeaponPalette:
         if value not in self.values:
             self.values.append(value)
         else:
-            msg = f"{value} is already in the WeaponPalette!"
+            msg = f"{value} is already in the Palette!"
             print(msg)
             logging.error(msg)
 
@@ -99,8 +61,10 @@ class Game: # Abstraction for potential future randomizers
     current_level: str = None
     current_bsp: int = 0
 
-    character_palette: CharacterPalette = None
-    weapon_palette: WeaponPalette = None
+    master_character_palette: Palette = None # A palette of all possible characters on a level
+    master_weapon_palette: Palette = None # A palette of all possible weapons on a level
+
+    weapon_palettes: dict = {}
 
     # TODO: Make these json and autoupdate
     charspawn_offsets = []
@@ -129,7 +93,7 @@ class Game: # Abstraction for potential future randomizers
     WEAPON_CLASSES_MAPPING = {} # Map subclasses (tag names) to weapon_classes
 
     known_randomizations = [] # Randomizations that have already occured in this randomizer; ie. do not reroll when restart mission or revert checkpoint. [[SQ, SQ_IDX], SAVED]
-    known_weapon_randomizations = [] # Weapon randomizations that have already occured in this randomizer; [[SQ, UID], SAVED]
+    known_weapon_randomizations = {} # Weapon randomizations that have already occured in this randomizer; [[SQ, UID], SAVED]
 
 
     def __init__(self, exe, dll):
@@ -306,7 +270,7 @@ class Game: # Abstraction for potential future randomizers
         in_game_msg: bool = True
         initial_loop: bool = True
         thread_debug_handling = threading.Thread(target=self.start_debug_handling)
-        randomizer_obj_cpp = None # Define randomizer_obj_cpp 
+        debugger_obj_cpp = None # Define debugger_obj_cpp 
         
         while True:
             # Continually set config values
@@ -323,24 +287,24 @@ class Game: # Abstraction for potential future randomizers
                     if in_game_msg:
                         console_output(f"Valid level detected ({self.current_level})")
                         in_game_msg = False
-                    randomizer_obj_cpp = self.cpp_accessor.access_randomizer() # Refresh randomizer_obj_cpp
+                    debugger_obj_cpp = self.cpp_accessor.access_debugger() # Refresh debugger_obj_cpp
                     has_started_loop = True
                     if initial_loop:
                         initial_loop = False
                         random.seed(seed_setting.get() if not seed_randomizer_setting.get() else datetime.now()) # Set the seed based on what user has set in GUI
                         disable_frame(main_window_options_frame) # Prevent user from modifying seed once we begin randomizing
-                        self.initial_loop(randomizer_obj_cpp, thread_debug_handling)
+                        self.initial_loop(debugger_obj_cpp, thread_debug_handling)
                     else:
 
                         # Main Loop
-                        self.main_loop(randomizer_obj_cpp, thread_debug_handling) 
+                        self.main_loop(debugger_obj_cpp, thread_debug_handling) 
 
 
                 else: # If we're not in game keep looping until we're back
                     if has_started_loop: # Reset DLL if we already started loop
                         self.p = None
                         self.game_dll = None
-                        randomizer_obj_cpp.stop()
+                        debugger_obj_cpp.stop()
                         if thread_debug_handling.is_alive():
                             thread_debug_handling.join()
                         console_output("Not currently in-game, destroying randomizer. Retrying hook in a few seconds...")
@@ -359,7 +323,7 @@ class Game: # Abstraction for potential future randomizers
                 self.p = None
                 self.game_dll = None
                 if has_started_loop:
-                    randomizer_obj_cpp.stop()
+                    debugger_obj_cpp.stop()
                     thread_debug_handling.join()
                 console_output(f"Lost handle to {self.exe_name} and/or {self.dll_name}. Retrying hook in a few seconds...")
                 console_output(f"--- HALO 3 RANDOMIZER TERMINATED | {datetime.now().strftime('%d%b%Y %H:%M:%S').upper()} ---\n")
@@ -373,30 +337,33 @@ class Game: # Abstraction for potential future randomizers
     def randomize_char_weapon(self, ctx): # This needs to be delegated to subclass
         return ctx
 
-    def initial_loop(self, randomizer_obj_cpp, thread_debug_handling):
-        self.cpp_accessor.create_randomizer(self.p.process_id)
+    def initial_loop(self, debugger_obj_cpp, thread_debug_handling):
+        self.cpp_accessor.create_debugger(self.p.process_id)
         console_output(f"Created randomizer! Seed: {seed_setting.get() if not seed_randomizer_setting.get() else 'R A N D O M I Z E D'}")
         spawn_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.charspawn_offsets), self.randomize_char)
-        randomizer_obj_cpp.set_breakpoint(0, spawn_breakpoint) # Set breakpoint a H3Randomizer.breakpoints[0] in Dr0 register
-        console_output("Set character spawn breakpoint!")
-        weapon_randomizer_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.charweapon_offsets), self.randomize_char_weapon)
-        randomizer_obj_cpp.set_breakpoint(1, weapon_randomizer_breakpoint) # Set breakpoint a H3Randomizer.breakpoints[0] in Dr0 register
+        #debugger_obj_cpp.create_hardware_breakpoint(0, spawn_breakpoint) # Set hardware breakpoint at H3Randomizer.breakpoints[0] in Dr0 register
+        #console_output("Set character spawn breakpoint!")
+        weapon_randomizer_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.charweapon_offsets), 0x45, self.randomize_char_weapon)
+        debugger_obj_cpp.create_software_breakpoint(weapon_randomizer_breakpoint) # Set software breakpoint
         console_output("Set character spawn weapon breakpoint!")
         thread_debug_handling.start()
 
-    def main_loop(self, randomizer_obj_cpp, thread_debug_handling):
+    def main_loop(self, debugger_obj_cpp, thread_debug_handling):
         # Do main loop stuff
         pass
 
 
     def start_debug_handling(self):
-        randomizer = self.cpp_accessor.access_randomizer()
+        randomizer = self.cpp_accessor.access_debugger()
         randomizer.start_handling_breakpoints()
+
+    def generate_weapon_palettes(self):
+        pass
 
 class Halo3 (Game): # Handle hooking and process stuff
     
     def __init__(self, exe, dll):
-        self.cpp_accessor = H3Randomizer_CPP
+        self.cpp_accessor = PyDebugger_CPP
         self.charspawn_offsets = [0x55C2E1] # set character datum @ Rax
         #self.charspawn_offsets = [0x55C2D9] # set character palette index @ Rax
         self.charweapon_offsets = [0x55331F]
@@ -778,9 +745,9 @@ class Halo3 (Game): # Handle hooking and process stuff
 
         super().__init__(exe, dll)
 
-    def get_character_palette(self, address): # Creates character palette object with the default values for the current level
+    def get_master_character_palette(self, address): # Creates character palette object with the default values for the current level
         cur_index = 0
-        palette = CharacterPalette(self.current_level, [])
+        palette = Palette(self.current_level, [])
 
         while (self.p.read_string(address + (cur_index * 16), 4) == "rahc"):
             datum = bytearray(self.p.read_bytes((address + (cur_index * 16) + 12), 4))
@@ -806,9 +773,9 @@ class Halo3 (Game): # Handle hooking and process stuff
 
         return palette
 
-    def get_weapon_palette(self, address): # Creates weapon palette object with the default values for the current level
+    def get_master_weapon_palette(self, address): # Creates weapon palette object with the default values for the current level
         cur_index = 0
-        palette = WeaponPalette(self.current_level, [])
+        palette = Palette(self.current_level, [])
 
         palette.add(0x00000000) # noweapon choice
 
@@ -870,7 +837,7 @@ class Halo3 (Game): # Handle hooking and process stuff
         if [ctx['R14'] - ctx['R10'], ctx['Rbx']] not in (i[0] for i in self.known_randomizations):
             rng = -1
 
-            palette = self.character_palette
+            palette = self.master_character_palette
             if palette.level != level:
                 return ctx
 
@@ -898,57 +865,34 @@ class Halo3 (Game): # Handle hooking and process stuff
 
     # Randomize/set weapons
     def randomize_char_weapon(self, ctx): # Rbx = Character Datum for Comparison (Setting does weird things), R8 = Weapon Datum, R9 = UID, R11 = Base Squad
-        if ctx['R9'] not in (i[0] for i in self.known_weapon_randomizations):
-            character = ctx['Rbx'] # Get the character datum
-            rng = -1
-            level = self.current_level
-            
-            character_palette = self.character_palette
-            weapon_palette = self.weapon_palette
 
-            if weapon_palette.level != level:
-                return ctx
+        # if we already "know" this randomization, just set what we know and return
+        if ctx['R9'] in self.known_weapon_randomizations:
+            ctx['R8'] = self.known_weapon_randomizations[ctx['R9']]
+            return
 
-            try:
-                character_weapon_class = self.WEAPON_CLASSES_MAPPING[self.get_tag_string(character)]
-            except:
-                msg = f"Could not get character_weapon_class of {self.get_tag_string(character)}!"
-                print(msg)
-                logging.error(msg)
-                return ctx
-            
-            allowed_weapons_normal = self.WEAPON_CLASSES[character_weapon_class][0]
-            allowed_weapons_random = self.WEAPON_CLASSES[character_weapon_class][1]
+        character = ctx['Rbx'] # Get the character datum
+        level = self.current_level
+        
+        try:
+            weapon_palette = self.weapon_palettes[character]
+        except: # If there is no weapon_palette, we don't want to randomize this character's weapons.
+            return
 
-            if weapon_randomizer_setting.get() == 0: # If we only want locked randomized weapons (default for class)
-                allowed_weapons = allowed_weapons_normal
-            else:
-                allowed_weapons = allowed_weapons_random
+        if weapon_palette.level != level:
+            return
 
-            while True:
-                if character_weapon_class == "noweapon":
-                    rng = 0x00000000
-                    break
-                # Keep rolling until the weapon is allowed for class and allowed in the current bsp
-                rng = random.choice(weapon_palette.values)
-                if self.get_tag_string(rng) in allowed_weapons and self.check_weapon_palette_bsp(rng):
-                    break
-                if self.get_tag_string(rng) in allowed_weapons and not self.check_weapon_palette_bsp(rng) and len(allowed_weapons) < 2: # If the weapon isn't allowed in current bsp and it's the only choice just return default
-                    return ctx
+        rng = random.choice([i for i in weapon_palette.values if self.check_weapon_palette_bsp(i)])
 
-            ctx['R8'] = rng
-            msg = f"Weapon: {self.get_tag_string(rng)}({rng})"
-            print(msg)
-            logging.info(msg)
-            self.known_weapon_randomizations.append([ctx['R9'], ctx['R8']])
-        else:
-            known = [i for i in self.known_weapon_randomizations if i[0] == ctx['R9']]
-            ctx['R8'] = known[0][1]
+        ctx['R8'] = rng
+        msg = f"Weapon: {self.get_tag_string(rng)}({rng})"
+        print(msg)
+        logging.info(msg)
 
-        return ctx # Must return ctx no matter what
+        self.known_weapon_randomizations[ctx['R9']] = ctx['R8']
 
-    def initial_loop(self, randomizer_obj_cpp, thread_debug_handling):
-        super().initial_loop(randomizer_obj_cpp, thread_debug_handling)
+    def initial_loop(self, debugger_obj_cpp, thread_debug_handling):
+        super().initial_loop(debugger_obj_cpp, thread_debug_handling)
         self.p.write_bytes(self.get_pointer(self.game_dll, [0x569092]), b'\x90\x90\x90\x90\x90\x90', 6) # enter_vehicle_immediate workaround
         self.p.write_bytes(self.get_pointer(self.game_dll, [0x39980C]), b'\x90\x90', 2) # vehicle_load_magic workaround
 
@@ -961,54 +905,73 @@ class Halo3 (Game): # Handle hooking and process stuff
             except:
                 continue
             else:
-                self.character_palette = self.get_character_palette(base_pointer + table_offset)
-                console_output(self.character_palette)
+                self.master_character_palette = self.get_master_character_palette(base_pointer + table_offset)
+                console_output(self.master_character_palette)
                 break
+            
+        self.generate_weapon_palettes()
 
-        console_output("Attempting to obtain WeaponPalette...")
-        while True:
-            try:
-                table_offset_pointer = self.get_pointer(self.game_dll, self.special_offsets[1] + [0x12C])
-                table_offset = self.p.read_ulong(table_offset_pointer) * 4
-                base_pointer = self.p.read_ulonglong(self.get_pointer(self.game_dll, self.special_offsets[0]))
-            except:
-                continue
-            else:
-                self.weapon_palette = self.get_weapon_palette(base_pointer + table_offset)
-                console_output(self.weapon_palette)
-                break
+    def main_loop(self, debugger_obj_cpp, thread_debug_handling):
+        super().main_loop(debugger_obj_cpp, thread_debug_handling)
 
-    def main_loop(self, randomizer_obj_cpp, thread_debug_handling):
-        super().main_loop(randomizer_obj_cpp, thread_debug_handling)
-
-        if self.current_level != self.character_palette.level:
+        if self.current_level != self.master_character_palette.level:
             console_output("New level detected, getting new character palette!")
             while True:
                 try:
-                    self.character_palette = None
+                    self.master_character_palette = None
                     table_offset_pointer = self.get_pointer(self.game_dll, self.special_offsets[1] + [0x3B4])
                     table_offset = self.p.read_ulong(table_offset_pointer) * 4
                     base_pointer = self.p.read_ulonglong(self.get_pointer(self.game_dll, self.special_offsets[0]))
                 except:
                     continue # We have to keep trying to get palette or else uh oh
                 else:
-                    self.character_palette = self.get_character_palette(base_pointer + table_offset)
-                    console_output(self.character_palette)
+                    self.master_character_palette = self.get_master_character_palette(base_pointer + table_offset)
+                    console_output(self.master_character_palette)
                     break
         
-        if self.current_level != self.weapon_palette.level:
-            console_output("New level detected, getting new weapon palette!")
-            while True:
-                try:
-                    self.weapon_palette = None
-                    table_offset_pointer = self.get_pointer(self.game_dll, self.special_offsets[1] + [0x12C])
-                    table_offset = self.p.read_ulong(table_offset_pointer) * 4
-                    base_pointer = self.p.read_ulonglong(self.get_pointer(self.game_dll, self.special_offsets[0]))
-                except:
-                    continue # We have to keep trying to get palette or else uh oh
-                else:
-                    self.weapon_palette = self.get_weapon_palette(base_pointer + table_offset)
-                    console_output(self.weapon_palette)
-                    break
+        if self.current_level != self.master_weapon_palette.level:
+            self.generate_weapon_palettes()
+
+    def generate_weapon_palettes(self):
+        while True:
+            try:
+                self.master_weapon_palette = None
+                table_offset_pointer = self.get_pointer(self.game_dll, self.special_offsets[1] + [0x12C])
+                table_offset = self.p.read_ulong(table_offset_pointer) * 4
+                base_pointer = self.p.read_ulonglong(self.get_pointer(self.game_dll, self.special_offsets[0]))
+            except:
+                continue
+            else:
+                break
+
+        self.master_weapon_palette = self.get_master_weapon_palette(base_pointer + table_offset)
+        # Reset the weapon_palettes dictionary for the new level
+        self.weapon_palettes.clear()
+
+        # Create Palette objects for each character and add to weapon_palettes - this was originally done on each iteration of randomize_char_weapon but that's not efficient
+        for character in self.master_character_palette.values:
+            try:
+                character_weapon_class = self.WEAPON_CLASSES_MAPPING[self.get_tag_string(character)]
+            except: # If the character isn't in WEAPON_CLASSES_MAPPING, don't create a palette for it 
+                continue
+
+            if weapon_randomizer_setting.get() == 0: # Select the appropriate allowed_weapons to cross with the weapons in the level for the final weapon palette
+                allowed_weapons = self.WEAPON_CLASSES[character_weapon_class][0]
+            else:
+                allowed_weapons = self.WEAPON_CLASSES[character_weapon_class][1]
+
+            values = []
+
+            for weapon in self.master_weapon_palette.values:
+                if self.get_tag_string(weapon) in allowed_weapons:
+                    values.append(weapon)
+
+            character_weapon_palette = Palette(self.current_level, values)
+                    
+            if character_weapon_class == "noweapon":
+                character_weapon_palette = Palette(self.current_level, [0])
+
+            # Add this character weapon palette to the weapon_palettes dictionary with the character datum as a key
+            self.weapon_palettes[character] = character_weapon_palette
 
 g_current_randomizer: Game

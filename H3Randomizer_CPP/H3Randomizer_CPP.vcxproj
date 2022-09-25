@@ -32,7 +32,7 @@
     <ProjectGuid>{cdc21f21-25c1-422c-a720-a5f25d904a40}</ProjectGuid>
     <RootNamespace>H3RandomizerCPP</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>H3Randomizer_CPP</ProjectName>
+    <ProjectName>PyDebugger_CPP</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
