@@ -341,8 +341,8 @@ class Game: # Abstraction for potential future randomizers
         self.cpp_accessor.create_debugger(self.p.process_id)
         console_output(f"Created randomizer! Seed: {seed_setting.get() if not seed_randomizer_setting.get() else 'R A N D O M I Z E D'}")
         spawn_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.charspawn_offsets), self.randomize_char)
-        #debugger_obj_cpp.create_hardware_breakpoint(0, spawn_breakpoint) # Set hardware breakpoint at H3Randomizer.breakpoints[0] in Dr0 register
-        #console_output("Set character spawn breakpoint!")
+        debugger_obj_cpp.create_hardware_breakpoint(0, spawn_breakpoint) # Set hardware breakpoint at H3Randomizer.breakpoints[0] in Dr0 register
+        console_output("Set character spawn breakpoint!")
         weapon_randomizer_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.charweapon_offsets), 0x45, self.randomize_char_weapon)
         debugger_obj_cpp.create_software_breakpoint(weapon_randomizer_breakpoint) # Set software breakpoint
         console_output("Set character spawn weapon breakpoint!")
