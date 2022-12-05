@@ -32,7 +32,7 @@ class Palette:
         return out
 
     def remove(self, value: int):
-        """Removes a value from the WeaponPalette"""
+        """Removes a value from the Palette"""
         if value in self.values:
             self.values.remove(value)
         else:
@@ -41,7 +41,7 @@ class Palette:
             logging.error(msg)
 
     def add(self, value: int):
-        """Adds a value to the WeaponPalette"""
+        """Adds a value to the Palette"""
         if value not in self.values:
             self.values.append(value)
         else:
@@ -96,6 +96,7 @@ class Game: # Abstraction for potential future randomizers
     known_character_randomizations = {} # Randomizations that have already occured in this randomizer; ie. do not reroll when restart mission or revert checkpoint. {[SQ, SQ_IDX]: SAVED}
     known_weapon_randomizations = {} # Weapon randomizations that have already occured in this randomizer; {UID: SAVED}
 
+    known_tag_strings = {} # Dictionary to store known tag strings
 
     def __init__(self, exe, dll):
         self.exe_name = exe
@@ -109,13 +110,22 @@ class Game: # Abstraction for potential future randomizers
         if datum == 0x00000000 or datum == 0xFFFFFFFF:
             return "null"
 
+        if datum in self.known_tag_strings:
+            # If the datum is in our dictionary of known tag strings, just get it from there instead of rereading memory
+            if only_last:
+                # Return the last bit of the string after slash if only_last is True
+                return self.known_tag_strings[datum].split("\\")[-1]
+            return self.known_tag_strings[datum]
+
         i = datum % 0x10000     # Get the lower 4 bits of the tag datum
         i *= 8                  # Multiply by 8 (length of each string table entry)
         dict_base = self.get_pointer(self.game_dll, self.string_dictionary_offsets)
-        ptr = self.p.read_ulonglong(dict_base + i)
+        ptr = self.p.read_ulonglong(dict_base + i) # string value can be found from the string dictionary base + the lower 4 bits of tag datum * 8
 
         try:
-            out = self.p.read_string(ptr, 255)
+            out = self.p.read_string(ptr, 255) # read up to 255 characters or null terminator from the pointer
+            if out:
+                self.known_tag_strings[datum] = out
         except:
             msg = f"Could not get tag string of {hex(datum)}"
             print(msg)
@@ -123,7 +133,7 @@ class Game: # Abstraction for potential future randomizers
             return "" # return blank string to hopefully not cause issues lmao
 
         if only_last:
-            return out.split("\\")[-1]
+            return out.split("\\")[-1] # if we're only getting the last part of the tag string, return the last bit of the string after a slash.
 
         return out # Read until string terminator or 255 bytes
 
@@ -131,10 +141,10 @@ class Game: # Abstraction for potential future randomizers
         '''
         Returns a pointer given a module (DLL) and list of offsets.
         '''
-        base_offset = 0
 
         base_offset: int = 0 # Initialize as 0 just in case
-        if len(offsets) <= 1:
+
+        if len(offsets) <= 1: # if we have one or less offset, just return the address + the first offset
             base_offset = offsets[0]
             return module.lpBaseOfDll + base_offset
 
@@ -154,9 +164,9 @@ class Game: # Abstraction for potential future randomizers
         '''
         Updates the current level variable.
         '''
-        pointer = self.get_pointer(self.game_dll, self.curlevel_offsets)
+        pointer = self.get_pointer(self.game_dll, self.curlevel_offsets) # get the current level pointer
         try:
-            curlevel = self.p.read_string(pointer, 16)
+            curlevel = self.p.read_string(pointer, 16) # read the level string from the current level pointer until 16 characters or null terminator
             self.current_level = curlevel
             return curlevel
         except:
@@ -166,9 +176,9 @@ class Game: # Abstraction for potential future randomizers
         '''
         Updates the current bsp variable.
         '''
-        pointer = self.get_pointer(self.game_dll, self.curbsp_offsets)
+        pointer = self.get_pointer(self.game_dll, self.curbsp_offsets) # get the current bsp pointer
         try:
-            curbsp = self.p.read_int(pointer)
+            curbsp = self.p.read_int(pointer) # read the bsp integer
             self.current_bsp = curbsp
             return curbsp
         except:
@@ -176,18 +186,19 @@ class Game: # Abstraction for potential future randomizers
 
     def hook(self, exe: str):
         """Continually attempt to get a handle of the defined process (exe). Returns Pymem object."""
-        while not self.p: # Continually try to instantiate a new Pymem from the given exe name.
+        pm: Pymem = None
+        while not pm: # Continually try to instantiate a new Pymem from the given exe name.
             try:
-                pm = Pymem(exe)
+                pm = Pymem(exe) # try to create a Pymeme object from the exte name
                 time.sleep(1)
             except Exception as e:
                 if isinstance(e, pymem.exception.ProcessNotFound):
-                    continue
+                    continue # continue if process isn't found
                 elif isinstance(e, pymem.exception.CouldNotOpenProcess):
-                    console_output(f"Failed to attach to {exe}.")
+                    console_output(f"Failed to attach to {exe}.") # break if we fail to attach to the process
                     break
                 else:
-                    console_output(f"{e}")
+                    console_output(f"{e}") # print error if it's something else and break
                     break
             else:
                 console_output(f"Attached to {exe} ({pm.process_id})!")
@@ -212,7 +223,7 @@ class Game: # Abstraction for potential future randomizers
     def check_hook(self):
         """Check that process (p) is still hooked. Returns True or False."""
         try:
-            ret = self.p.base_address
+            ret = self.p.base_address # if we can read the process base address, it's still hooked
         except:
             return False
         else:
@@ -281,22 +292,25 @@ class Game: # Abstraction for potential future randomizers
 
             if self.check_hook() and self.check_module(self.dll_name): # Continually ensure we have a handle on process and DLL
 
+                # continually update current level and bsp
                 self.update_current_level()
                 self.update_current_bsp()
+
                 if self.current_level in self.ALLOWED_LEVELS: # Check current_level if we're currently on a randomizable level
                     waiting_for_game_msg = True
                     if in_game_msg:
                         console_output(f"Valid level detected ({self.current_level})")
                         in_game_msg = False
+
                     debugger_obj_cpp = self.cpp_accessor.access_debugger() # Refresh debugger_obj_cpp
                     has_started_loop = True
                     if initial_loop:
                         initial_loop = False
                         random.seed(seed_setting.get() if not seed_randomizer_setting.get() else datetime.now()) # Set the seed based on what user has set in GUI
                         disable_frame(main_window_options_frame) # Prevent user from modifying seed once we begin randomizing
-                        self.initial_loop(debugger_obj_cpp, thread_debug_handling)
-                    # Main Loop
-                    self.main_loop(debugger_obj_cpp, thread_debug_handling) 
+                        self.initial_loop(debugger_obj_cpp, thread_debug_handling) # execute the initial_loop function
+                    # main loop
+                    self.main_loop(debugger_obj_cpp, thread_debug_handling)
 
 
                 else: # If we're not in game keep looping until we're back
@@ -305,7 +319,7 @@ class Game: # Abstraction for potential future randomizers
                         self.game_dll = None
                         debugger_obj_cpp.stop()
                         if thread_debug_handling.is_alive():
-                            thread_debug_handling.join()
+                            thread_debug_handling.join() # kill the cpp thread since the game is no longer hooked
                         console_output("Not currently in-game, destroying randomizer. Retrying hook in a few seconds...")
                         console_output("NOTE: Restarting the game is recommended due to potential instability.")
                         console_output(f"--- HALO 3 RANDOMIZER TERMINATED | {datetime.now().strftime('%d%b%Y %H:%M:%S').upper()} ---\n")
@@ -740,26 +754,26 @@ class Halo3 (Game): # Handle hooking and process stuff
         cur_index = 0
         palette = Palette(self.current_level, [])
 
-        while (self.p.read_string(address + (cur_index * 16), 4) == "rahc"):
-            datum = bytearray(self.p.read_bytes((address + (cur_index * 16) + 12), 4))
-            datum.reverse()
+        while (self.p.read_string(address + (cur_index * 16), 4) == "rahc"): # read all character datums from the character palette address
+            datum = bytearray(self.p.read_bytes((address + (cur_index * 16) + 12), 4)) # read the four bytes
+            datum.reverse() # they are stored in little endian so we want to reverse the byte array
             out = int(f"0x{datum.hex().upper()}", 16)
 
             if self.get_tag_string(out) not in self.DISQUALIFIED_CHARACTERS:
-                palette.add(out)
+                palette.add(out) # add this datum to the palette if we haven't disqualified the tag string corresponding to the datum
 
             cur_index += 1
         
         if self.current_level in self.CHARACTER_PALETTE_MODIFICATIONS:
             for op in self.CHARACTER_PALETTE_MODIFICATIONS[self.current_level]: # Handle palette modifications
-                if op[0] == 0:
+                if op[0] == 0: # op[0] == 0 means we want to delete the op[1] from the palette
                     for val in palette.values:
                         if self.get_tag_string(val) == op[1]:
                             try:
                                 palette.remove(val)
                             except Exception as e:
                                 console_output(e)
-                else:
+                else: # op[0] == 1 means we want to add the op[1] to the palette
                     palette.add(op[1])
 
         return palette
@@ -768,11 +782,11 @@ class Halo3 (Game): # Handle hooking and process stuff
         cur_index = 0
         palette = Palette(self.current_level, [])
 
-        palette.add(0x00000000) # noweapon choice
+        palette.add(0x00000000) # noweapon choice added for posterity
 
-        while (self.p.read_string(address + (cur_index * 48), 4) == "paew"):
-            datum = bytearray(self.p.read_bytes((address + (cur_index * 48) + 12), 4))
-            datum.reverse()
+        while (self.p.read_string(address + (cur_index * 48), 4) == "paew"): # read all weapon datums from the weapon palette address
+            datum = bytearray(self.p.read_bytes((address + (cur_index * 48) + 12), 4)) # read the four bytes
+            datum.reverse() # stored in little endian so we reverse byte array
             out = int(f"0x{datum.hex().upper()}", 16)
 
             if self.get_tag_string(out) not in self.DISQUALIFIED_WEAPONS:
@@ -815,10 +829,10 @@ class Halo3 (Game): # Handle hooking and process stuff
         return True # Return True if we loop through the whole thing and don't find the thing
 
 
-    def randomize_char(self, ctx): # Rax = Character Datum, Rbx/R15 = Squad Unit Index, R8 = Character Palette, R9/R14 = Base Squad Offset relative to R10/Scenario Ptr
+    def randomize_char(self, ctx): # Rax = Character Datum, Rbx/R15 = Squad Unit Index, R8 = Character Palette, R10 = Scenario Pointer, R9/R14 = Base Squad Offset relative to R10
         hashed_savevalue = str([ctx['R14'] - ctx['R10'], ctx['Rbx']])
 
-        if hashed_savevalue in self.known_character_randomizations:
+        if hashed_savevalue in self.known_character_randomizations: # if we already randomized in this session, just return the saved randomization to keep seed integrity
             ctx['Rax'] = self.known_character_randomizations[hashed_savevalue]
             return
 
@@ -827,23 +841,25 @@ class Halo3 (Game): # Handle hooking and process stuff
         if ctx['R14'] - ctx['R10'] in self.DISQUALIFIED_SQUADS[level]: # If Base Squad offset is in DISQUALIFIED_SQUADS, don't randomize
             return
 
-        for area in self.DISQUALIFIED_AREAS:
+        for area in self.DISQUALIFIED_AREAS: # make sure we haven't disqualified the current area, otherwise return non-randomized
             if area[0] == self.current_level and area[1] == self.current_bsp:
-                return ctx
+                return
             
-        rng = -1
 
         palette = self.master_character_palette
-        if palette.level != level:
-            return ctx
+        if palette.level != level: # ensure the character palette we have corresponds to the current level
+            return
 
         if not self.check_character_palette_bsp(ctx['Rax']): # if the guy shouldn't be randomized don't do it
-            return ctx
+            return
 
         if ctx['Rax'] in palette.values: # Only randomize if the original character datum is in the palette
-            rng = random.choice(palette.values) # Select a random value from the CharacterPalette
-                        
-            ctx['Rax'] = rng
+            rng = random.choice(palette.values)
+
+            while not self.check_character_palette_bsp(rng):
+                rng = random.choice(palette.values) # Select a random value from the CharacterPalette that is allowed in current bsp
+            
+            ctx['Rax'] = rng # set Rax register to the rng value
             msg = f"Character: {self.get_tag_string(rng)}({rng})"
             print(msg)
             logging.info(msg)
@@ -871,6 +887,9 @@ class Halo3 (Game): # Handle hooking and process stuff
 
         rng = random.choice(weapon_palette.values)
 
+        while not self.check_weapon_palette_bsp(rng):
+            rng = random.choice(weapon_palette.values)
+
         ctx['R8'] = rng
         msg = f"Weapon: {self.get_tag_string(rng)}({rng})"
         print(msg)
@@ -887,7 +906,7 @@ class Halo3 (Game): # Handle hooking and process stuff
         debugger_obj_cpp.create_hardware_breakpoint(0, spawn_breakpoint) # Set hardware breakpoint at H3Randomizer.breakpoints[0] in Dr0 register
         console_output("Set character spawn breakpoint!")
         weapon_randomizer_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.charweapon_offsets), self.randomize_char_weapon)
-        debugger_obj_cpp.create_hardware_breakpoint(1, weapon_randomizer_breakpoint) # Set software breakpoint
+        debugger_obj_cpp.create_hardware_breakpoint(1, weapon_randomizer_breakpoint) # Set hardware breakpoint at H3Randomizer.breakpoints[1] in Dr0 register
         console_output("Set character spawn weapon breakpoint!")
         thread_debug_handling.start()
 
