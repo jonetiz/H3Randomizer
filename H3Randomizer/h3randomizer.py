@@ -58,7 +58,8 @@ class Game: # Abstraction for potential future randomizers
     dll_name: str = ""
     cpp_accessor = None
     
-    current_level: str = None
+    current_level: str = None # the current level updated every loop
+    set_level: str = None # the set level for comparing to see if we're on a new level, set during initial_loop
     current_bsp: int = 0
 
     master_character_palette: Palette = None # A palette of all possible characters on a level
@@ -92,8 +93,8 @@ class Game: # Abstraction for potential future randomizers
     WEAPON_CLASSES = {} # Map valid weapons to weapon classes
     WEAPON_CLASSES_MAPPING = {} # Map subclasses (tag names) to weapon_classes
 
-    known_randomizations = [] # Randomizations that have already occured in this randomizer; ie. do not reroll when restart mission or revert checkpoint. [[SQ, SQ_IDX], SAVED]
-    known_weapon_randomizations = {} # Weapon randomizations that have already occured in this randomizer; [[SQ, UID], SAVED]
+    known_character_randomizations = {} # Randomizations that have already occured in this randomizer; ie. do not reroll when restart mission or revert checkpoint. {[SQ, SQ_IDX]: SAVED}
+    known_weapon_randomizations = {} # Weapon randomizations that have already occured in this randomizer; {UID: SAVED}
 
 
     def __init__(self, exe, dll):
@@ -294,10 +295,8 @@ class Game: # Abstraction for potential future randomizers
                         random.seed(seed_setting.get() if not seed_randomizer_setting.get() else datetime.now()) # Set the seed based on what user has set in GUI
                         disable_frame(main_window_options_frame) # Prevent user from modifying seed once we begin randomizing
                         self.initial_loop(debugger_obj_cpp, thread_debug_handling)
-                    else:
-
-                        # Main Loop
-                        self.main_loop(debugger_obj_cpp, thread_debug_handling) 
+                    # Main Loop
+                    self.main_loop(debugger_obj_cpp, thread_debug_handling) 
 
 
                 else: # If we're not in game keep looping until we're back
@@ -338,15 +337,7 @@ class Game: # Abstraction for potential future randomizers
         return ctx
 
     def initial_loop(self, debugger_obj_cpp, thread_debug_handling):
-        self.cpp_accessor.create_debugger(self.p.process_id)
-        console_output(f"Created randomizer! Seed: {seed_setting.get() if not seed_randomizer_setting.get() else 'R A N D O M I Z E D'}")
-        spawn_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.charspawn_offsets), self.randomize_char)
-        debugger_obj_cpp.create_hardware_breakpoint(0, spawn_breakpoint) # Set hardware breakpoint at H3Randomizer.breakpoints[0] in Dr0 register
-        console_output("Set character spawn breakpoint!")
-        weapon_randomizer_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.charweapon_offsets), 0x45, self.randomize_char_weapon)
-        debugger_obj_cpp.create_software_breakpoint(weapon_randomizer_breakpoint) # Set software breakpoint
-        console_output("Set character spawn weapon breakpoint!")
-        thread_debug_handling.start()
+        self.set_level = self.current_level
 
     def main_loop(self, debugger_obj_cpp, thread_debug_handling):
         # Do main loop stuff
@@ -356,6 +347,9 @@ class Game: # Abstraction for potential future randomizers
     def start_debug_handling(self):
         randomizer = self.cpp_accessor.access_debugger()
         randomizer.start_handling_breakpoints()
+
+    def generate_character_palette(self):
+        pass
 
     def generate_weapon_palettes(self):
         pass
@@ -370,7 +364,7 @@ class Halo3 (Game): # Handle hooking and process stuff
         self.curlevel_offsets = [0x1EABB78]
         self.curbsp_offsets = [0xA41D20, 0x2C]
         self.string_dictionary_offsets = [0xA41CF8, 0x820000] # For future reference: obtained by finding serialized string dictionary and finding pointer to the base.
-        self.special_offsets = [[0x1C37288],[0xA3F5B8]] # Scenario Mem Pointer, Mem Pointer Table
+        self.special_offsets = [[0x1C37288],[0xA3F5B8]] # Scenario Mem Pointer, Scenario Tag
 
         self.ALLOWED_LEVELS = ["010_jungle", "020_base", "030_outskirts", "040_voi", "050_floodvoi", "070_waste", "100_citadel", "110_hc", "120_halo"]
 
@@ -403,10 +397,6 @@ class Halo3 (Game): # Handle hooking and process stuff
                                 [1, 0x8E622CD0],    # brute_ultra
                             ],
             "020_base":     [
-                                #[0, 'marine'],      # need to remove regular marines for now
-                                #[0, 'bugger'],      
-                                #[0, 'bugger_major'], # this could probably work but rather not deal with it
-                                [0, 'hunter'],      # hunters in map file but not anywhere to be found
                                 [1, 0x96A93518],    # brute_captain_major
                                 [1, 0x96AA3519],    # brute_captain_ultra
                                 [1, 0x8C9E2B0D],    # brute_major
@@ -536,7 +526,8 @@ class Halo3 (Game): # Handle hooking and process stuff
                             ],
             "020_base":     [
                                 [1, 0xF8D91763], # spartan_laser
-                                [1, 0xE2BD0147] # machinegun_turret
+                                [1, 0xE2BD0147], # machinegun_turret
+                                [1, 0x9B5C39CB]  # hunter_particle_cannon
                             ],
             "030_outskirts":[
                                 [1, 0xF36511EF], # machinegun_turret
@@ -651,13 +642,13 @@ class Halo3 (Game): # Handle hooking and process stuff
                          ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "gravity_hammer", "plasma_rifle", "shotgun", "plasma_cannon", "machinegun_turret", "sentinel_gun", "sniper_rifle"]],
 
             "bugger":    [["plasma_pistol", "needler"],
-                         ["plasma_pistol", "needler", "magnum", "spike_rifle", "smg", "excavator", "plasma_rifle"]],
+                         ["plasma_pistol", "needler", "magnum", "spike_rifle", "smg", "excavator", "plasma_rifle", "assault_rifle", "battle_rifle"]],
 
             "hunter":    [["hunter_particle_cannon"],
                          ["hunter_particle_cannon"]],
 
-            "elite":    [["needler", "plasma_pistol", "plasma_rifle", "covenant_carbine", "flak_cannon", "energy_blade", "beam_rifle", "spartan_laser", "flamethrower"],
-                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "energy_blade", "sniper_rifle", "beam_rifle", "shotgun", "spartan_laser", "plasma_cannon", "machinegun_turret"]],
+            "elite":    [["needler", "plasma_rifle", "covenant_carbine", "flak_cannon", "energy_blade", "beam_rifle", "spartan_laser", "flamethrower"],
+                         ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "flak_cannon", "rocket_launcher", "energy_blade", "sniper_rifle", "beam_rifle", "shotgun", "spartan_laser", "plasma_cannon", "machinegun_turret", "flamethrower"]],
 
             "marine":   [["magnum", "assault_rifle", "battle_rifle", "smg", "rocket_launcher", "shotgun", "spartan_laser", "sniper_rifle"],
                          ["battle_rifle", "plasma_pistol", "needler", "magnum", "spike_rifle", "covenant_carbine", "assault_rifle", "smg", "excavator", "sniper_rifle", "flak_cannon", "rocket_launcher", "spartan_laser"]],
@@ -825,43 +816,39 @@ class Halo3 (Game): # Handle hooking and process stuff
 
 
     def randomize_char(self, ctx): # Rax = Character Datum, Rbx/R15 = Squad Unit Index, R8 = Character Palette, R9/R14 = Base Squad Offset relative to R10/Scenario Ptr
+        hashed_savevalue = str([ctx['R14'] - ctx['R10'], ctx['Rbx']])
+
+        if hashed_savevalue in self.known_character_randomizations:
+            ctx['Rax'] = self.known_character_randomizations[hashed_savevalue]
+            return
+
         level = self.current_level
-        for squad in self.DISQUALIFIED_SQUADS[level]:
-            if ctx['R14'] - ctx['R10'] == squad: # If Base Squad offset is in DISQUALIFIED_SQUADS, don't randomize
-                return ctx
+        
+        if ctx['R14'] - ctx['R10'] in self.DISQUALIFIED_SQUADS[level]: # If Base Squad offset is in DISQUALIFIED_SQUADS, don't randomize
+            return
 
         for area in self.DISQUALIFIED_AREAS:
             if area[0] == self.current_level and area[1] == self.current_bsp:
                 return ctx
+            
+        rng = -1
 
-        if [ctx['R14'] - ctx['R10'], ctx['Rbx']] not in (i[0] for i in self.known_randomizations):
-            rng = -1
+        palette = self.master_character_palette
+        if palette.level != level:
+            return ctx
 
-            palette = self.master_character_palette
-            if palette.level != level:
-                return ctx
+        if not self.check_character_palette_bsp(ctx['Rax']): # if the guy shouldn't be randomized don't do it
+            return ctx
 
-            if not self.check_character_palette_bsp(ctx['Rax']): # if the guy shouldn't be randomized don't do it
-                return ctx
-
-            if ctx['Rax'] in palette.values: # Only randomize if the original character datum is in the palette
-                while True: # Randomize until we get a character that's allowed in the current BSP
-                    rng = random.choice(palette.values) # Select a random value from the CharacterPalette
-                    if self.check_character_palette_bsp(rng):
-                        break
+        if ctx['Rax'] in palette.values: # Only randomize if the original character datum is in the palette
+            rng = random.choice(palette.values) # Select a random value from the CharacterPalette
                         
-                ctx['Rax'] = rng
+            ctx['Rax'] = rng
+            msg = f"Character: {self.get_tag_string(rng)}({rng})"
+            print(msg)
+            logging.info(msg)
 
-                msg = f"Character: {self.get_tag_string(rng)}({rng})"
-                print(msg)
-                logging.info(msg)
-
-                self.known_randomizations.append([[ctx['R14'] - ctx['R10'], ctx['Rbx']], ctx['Rax']])
-        else:
-            known = [i for i in self.known_randomizations if i[0] == [(ctx['R14'] - ctx['R10']), ctx['Rbx']]]
-            ctx['Rax'] = known[0][1]
-
-        return ctx # Must return ctx no matter what
+            self.known_character_randomizations[hashed_savevalue] = ctx['Rax']
 
     # Randomize/set weapons
     def randomize_char_weapon(self, ctx): # Rbx = Character Datum for Comparison (Setting does weird things), R8 = Weapon Datum, R9 = UID, R11 = Base Squad
@@ -882,7 +869,7 @@ class Halo3 (Game): # Handle hooking and process stuff
         if weapon_palette.level != level:
             return
 
-        rng = random.choice([i for i in weapon_palette.values if self.check_weapon_palette_bsp(i)])
+        rng = random.choice(weapon_palette.values)
 
         ctx['R8'] = rng
         msg = f"Weapon: {self.get_tag_string(rng)}({rng})"
@@ -893,44 +880,65 @@ class Halo3 (Game): # Handle hooking and process stuff
 
     def initial_loop(self, debugger_obj_cpp, thread_debug_handling):
         super().initial_loop(debugger_obj_cpp, thread_debug_handling)
+
+        self.cpp_accessor.create_debugger(self.p.process_id)
+        console_output(f"Created randomizer! Seed: {seed_setting.get() if not seed_randomizer_setting.get() else 'R A N D O M I Z E D'}")
+        spawn_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.charspawn_offsets), self.randomize_char)
+        debugger_obj_cpp.create_hardware_breakpoint(0, spawn_breakpoint) # Set hardware breakpoint at H3Randomizer.breakpoints[0] in Dr0 register
+        console_output("Set character spawn breakpoint!")
+        weapon_randomizer_breakpoint = self.cpp_accessor.Breakpoint(self.get_pointer(self.game_dll, self.charweapon_offsets), self.randomize_char_weapon)
+        debugger_obj_cpp.create_hardware_breakpoint(1, weapon_randomizer_breakpoint) # Set software breakpoint
+        console_output("Set character spawn weapon breakpoint!")
+        thread_debug_handling.start()
+
         self.p.write_bytes(self.get_pointer(self.game_dll, [0x569092]), b'\x90\x90\x90\x90\x90\x90', 6) # enter_vehicle_immediate workaround
         self.p.write_bytes(self.get_pointer(self.game_dll, [0x39980C]), b'\x90\x90', 2) # vehicle_load_magic workaround
+        
+        self.unlock_all_zonesets()
+        self.generate_character_palette()
+        self.generate_weapon_palettes()
 
-        console_output("Attempting to obtain CharacterPalette...")
+    def main_loop(self, debugger_obj_cpp, thread_debug_handling):
+        super().main_loop(debugger_obj_cpp, thread_debug_handling)
+
+        if self.current_level != self.set_level:
+            console_output("New level detected, getting new character and weapon palettes!")
+            self.unlock_all_zonesets()
+            self.generate_character_palette()
+            self.generate_weapon_palettes()
+            self.set_level = self.current_level
+
+    def unlock_all_zonesets(self):
         while True:
             try:
+                table_offset_pointer = self.get_pointer(self.game_dll, self.special_offsets[1] + [0x54])
+                table_offset = self.p.read_ulong(table_offset_pointer + 4) * 4
+                base_pointer = self.p.read_ulonglong(self.get_pointer(self.game_dll, self.special_offsets[0]))
+            except:
+                continue
+            else:
+                break
+        zoneset_count = self.p.read_int(table_offset_pointer)
+        zoneset_base = table_offset + base_pointer # Address of "Zone Sets" element 0; each element is 36 bytes long.
+        
+        for i in range(zoneset_count):
+            zoneset = zoneset_base + (36 * i)
+            self.p.write_bytes(zoneset + 16, b'\xFF\xFF\xFF\xFF\x00\x00\x00\x00', 8) # Write FF FF FF FF 00 00 00 00 to zoneset + 0x10 (loads all zonesets and removes unloaded)
+
+
+    def generate_character_palette(self):
+        while True:
+            try:
+                self.master_character_palette = None
                 table_offset_pointer = self.get_pointer(self.game_dll, self.special_offsets[1] + [0x3B4])
                 table_offset = self.p.read_ulong(table_offset_pointer) * 4
                 base_pointer = self.p.read_ulonglong(self.get_pointer(self.game_dll, self.special_offsets[0]))
             except:
                 continue
             else:
-                self.master_character_palette = self.get_master_character_palette(base_pointer + table_offset)
-                console_output(self.master_character_palette)
                 break
-            
-        self.generate_weapon_palettes()
-
-    def main_loop(self, debugger_obj_cpp, thread_debug_handling):
-        super().main_loop(debugger_obj_cpp, thread_debug_handling)
-
-        if self.current_level != self.master_character_palette.level:
-            console_output("New level detected, getting new character palette!")
-            while True:
-                try:
-                    self.master_character_palette = None
-                    table_offset_pointer = self.get_pointer(self.game_dll, self.special_offsets[1] + [0x3B4])
-                    table_offset = self.p.read_ulong(table_offset_pointer) * 4
-                    base_pointer = self.p.read_ulonglong(self.get_pointer(self.game_dll, self.special_offsets[0]))
-                except:
-                    continue # We have to keep trying to get palette or else uh oh
-                else:
-                    self.master_character_palette = self.get_master_character_palette(base_pointer + table_offset)
-                    console_output(self.master_character_palette)
-                    break
         
-        if self.current_level != self.master_weapon_palette.level:
-            self.generate_weapon_palettes()
+        self.master_character_palette = self.get_master_character_palette(base_pointer + table_offset)
 
     def generate_weapon_palettes(self):
         while True:
