@@ -7,24 +7,22 @@
 #include <winternl.h>
 #include <thread>
 
-using namespace std::chrono;
-
 namespace py = pybind11;
 
 DWORD UpdateBreakpointsOnThreads(DWORD dwProcessID, DWORD64 addr, int index) // Walk all threads and set Dr0-Dr3 breakpoints as designated by respective params addr1 - addr4
 {
 	THREADENTRY32 te = { sizeof(THREADENTRY32) };
-	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, dwProcessID);
+	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, dwProcessID); // Get a snapshot of all threads in the process
 
 	if (Thread32First(hSnapshot, &te))
-		while (Thread32Next(hSnapshot, &te))
-			if (te.th32OwnerProcessID == dwProcessID)
+		while (Thread32Next(hSnapshot, &te)) // Walk all threads captured in the snapshot
+			if (te.th32OwnerProcessID == dwProcessID) // ensure the thread is still owned by our process
 			{
-				HANDLE hThread = OpenThread(THREAD_ALL_ACCESS, FALSE, te.th32ThreadID);
+				HANDLE hThread = OpenThread(THREAD_ALL_ACCESS, FALSE, te.th32ThreadID); // Open the thread
 
 				CONTEXT ctx;
 				ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
-				if (GetThreadContext(hThread, &ctx))
+				if (GetThreadContext(hThread, &ctx)) // Get ctx and set Dr0 through Dr3 to the correspondent addresses based on index
 				{
 					// DWORD64 dFinalDr7[4];
 					if (index == 0) {
@@ -40,18 +38,18 @@ DWORD UpdateBreakpointsOnThreads(DWORD dwProcessID, DWORD64 addr, int index) // 
 						ctx.Dr3 = addr;
 					}
 
-					ctx.Dr7 = (1 << 0) | (1 << 2) | (1 << 4) | (1 << 6);
+					ctx.Dr7 = (1 << 0) | (1 << 2) | (1 << 4) | (1 << 6); // Set Dr7 register to enable hardware breakpoints
 
-					SetThreadContext(hThread, &ctx);
+					SetThreadContext(hThread, &ctx); // Re "save" ctx to the thread
 				}
 
-				CloseHandle(hThread);
+				CloseHandle(hThread); // Close our handle on the thread so it resumes
 				hThread = NULL;
 			}
 	return NULL;
 }
 
-BOOL SetDebugPrivilege(BOOL State)
+BOOL SetDebugPrivilege(BOOL State) // Toggle process debug privileges
 {
 	HANDLE hToken;
 	TOKEN_PRIVILEGES token_privileges;
@@ -183,9 +181,9 @@ class DebugHandler
 	public:
 		DWORD pid;
 		Breakpoint hwBreakpoints[4]; // 4 Hardware Breakpoints Available per thread on x86 Architecture
-		std::vector<Breakpoint> swBreakpoints; // Theoretically
+		std::vector<Breakpoint> swBreakpoints; // Theoretically unlimited number of software breakpoints
 
-		bool bHandleBreakpoints = false; // Used to halt while loop 
+		bool bHandleBreakpoints = false; // false halts loop
 
 		DebugHandler(DWORD p)
 		{
@@ -193,11 +191,11 @@ class DebugHandler
 		}
 		
 		void CreateHardwareBreakpoint(int i, Breakpoint b) {
-			DebugHandler::hwBreakpoints[i] = b;
+			DebugHandler::hwBreakpoints[i] = b; // Add the passed breakpoint to the hwBreakpoints array at the given index
 		}
 
 		void CreateSoftwareBreakpoint(Breakpoint b) {
-			DebugHandler::swBreakpoints.push_back(b);
+			DebugHandler::swBreakpoints.push_back(b); // Add the passed software breakpoint to the swBreakpoints vector
 		}
 		void DeleteSoftwareBreakpoint(DWORD64 addr) {
 			// TODO: Remove from swBreakpoints
@@ -207,7 +205,7 @@ class DebugHandler
 			HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, false, DebugHandler::pid);
 
 			BYTE int3 = 0xCC;
-			WriteProcessMemory(hProcess, (void*)b.address, &int3, sizeof(unsigned char), NULL);
+			WriteProcessMemory(hProcess, (void*)b.address, &int3, sizeof(unsigned char), NULL); // Write 0xCC to the breakpoint's address
 
 			CloseHandle(hProcess);
 		}
@@ -216,7 +214,7 @@ class DebugHandler
 			for (Breakpoint& breakpoint : DebugHandler::swBreakpoints) {
 				if (breakpoint == b) {
 					HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, false, DebugHandler::pid);
-					WriteProcessMemory(hProcess, (void*)breakpoint.address, &breakpoint.originalByte, sizeof(unsigned char), NULL);
+					WriteProcessMemory(hProcess, (void*)breakpoint.address, &breakpoint.originalByte, sizeof(unsigned char), NULL); // Write the original memory to the breakpoint's address (remove 0xCC)
 					CloseHandle(hProcess);
 
 				}
@@ -224,58 +222,58 @@ class DebugHandler
 		}
 
 		void StartHandlingBreakpoints() {
-			py::gil_scoped_release release;
+			py::gil_scoped_release release; // Release GIL to allow this thread to execute python
 			bHandleBreakpoints = true;
 			UpdateBreakpoints(); // Update breakpoints on target process
-			HandleBreakpoints();
-			py::gil_scoped_acquire acquire;
+			HandleBreakpoints(); // Begin handling breakpoints
+			py::gil_scoped_acquire acquire; // Reacquire GIL to maintain integrity
 		}
 
-		void UpdateBreakpoints() {
-			SetDebugPrivilege(true);
+		void UpdateBreakpoints() { // "set" the hardware breakpoints
+			SetDebugPrivilege(true); // Give this module debug privileges
 			HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, false, DebugHandler::pid);
-			if (DebugActiveProcess(DebugHandler::pid))
+			if (DebugActiveProcess(DebugHandler::pid)) // Attempt to attach to the process (only one process may be attached to another at a time)
 			{
-				if (DebugSetProcessKillOnExit != NULL)
+				if (DebugSetProcessKillOnExit != NULL) // Make it so the attached process does not close when this module exits/detaches
 					DebugSetProcessKillOnExit(false);
 
 				int counter = 0; // Keep track of array index and debug register
 				for (Breakpoint & breakpoint : DebugHandler::hwBreakpoints) { // Set hardware breakpoints on debug registers
 					if (breakpoint.address != 0x0) {
-						UpdateBreakpointsOnThreads(DebugHandler::pid, breakpoint.address, counter);
+						UpdateBreakpointsOnThreads(DebugHandler::pid, breakpoint.address, counter); // Set hardware breakpoints on all threads
 					}
 					counter += 1;
 				}
 
-				DebugActiveProcessStop(DebugHandler::pid);
+				DebugActiveProcessStop(DebugHandler::pid); // Detach from process
 			}
 
 			CloseHandle(&hProcess);
 		}
 
-		void HandleBreakpoints() {
-			SetDebugPrivilege(true);
+		void HandleBreakpoints() { // Handle breakpoints (debug process, wait for breakpoint, run python callback, continue)
+			SetDebugPrivilege(true); // Obtain debug privileges
 			HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, false, DebugHandler::pid);
-			if (DebugActiveProcess(DebugHandler::pid))
+			if (DebugActiveProcess(DebugHandler::pid)) // Attempt to debug the process
 			{
-				if (DebugSetProcessKillOnExit != NULL)
+				if (DebugSetProcessKillOnExit != NULL) // Prevent the debugee from closing when the debugger exits/detaches
 					DebugSetProcessKillOnExit(false);
 				
 				DEBUG_EVENT dbgEvent;
 				HANDLE hThread = NULL;
 				BOOL bContinueDebugging = false;
 
-				while (DebugHandler::bHandleBreakpoints)
+				while (DebugHandler::bHandleBreakpoints) // bHandleBreakpoints = false will break this loop
 				{
-					for (Breakpoint& breakpoint : DebugHandler::swBreakpoints) {
+					for (Breakpoint& breakpoint : DebugHandler::swBreakpoints) { // Set software breakpoints on each iteration (we have to rewrite original memory to allow execution)
 						DebugHandler::SetSoftwareBreakpoint(breakpoint);
 					}
 
-					WaitForDebugEvent(&dbgEvent, INFINITE);
+					WaitForDebugEvent(&dbgEvent, INFINITE); // Listen indefinitely for debug event
 
 					switch (dbgEvent.dwDebugEventCode)
 					{
-					case EXCEPTION_DEBUG_EVENT:
+					case EXCEPTION_DEBUG_EVENT: // When we get a dbgEvent
 						if (dbgEvent.u.Exception.ExceptionRecord.ExceptionCode == EXCEPTION_SINGLE_STEP) // Hardware breakpoint is triggered
 						{
 							for (Breakpoint& breakpoint : DebugHandler::hwBreakpoints) { // Foreach breakpoint in array check if this is the one
@@ -380,13 +378,13 @@ class DebugHandler
 		}
 };
 
-DebugHandler CurrentDebugger = DebugHandler(NULL); // The currently instantiated randomizer object
+DebugHandler CurrentDebugger = DebugHandler(NULL); // The currently instantiated randomizer object (for access from python)
 
-void CreateDebugger(DWORD pid) {
+void CreateDebugger(DWORD pid) { // Called from python to give python handle on the DebugHandler
 	CurrentDebugger = DebugHandler(pid);
 }
 
-DebugHandler* AccessDebugger() {
+DebugHandler* AccessDebugger() { // Returns the DebugHandler being used
 	return &CurrentDebugger;
 }
 
