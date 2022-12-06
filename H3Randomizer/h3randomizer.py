@@ -189,7 +189,7 @@ class Game: # Abstraction for potential future randomizers
         pm: Pymem = None
         while not pm: # Continually try to instantiate a new Pymem from the given exe name.
             try:
-                pm = Pymem(exe) # try to create a Pymeme object from the exte name
+                pm = Pymem(exe) # try to create a Pymeme object from the exe name
                 time.sleep(1)
             except Exception as e:
                 if isinstance(e, pymem.exception.ProcessNotFound):
@@ -243,8 +243,7 @@ class Game: # Abstraction for potential future randomizers
                 return False
             if m_current.lpBaseOfDll == self.game_dll.lpBaseOfDll:
                 return True
-            else:
-                return False
+            return False
 
     def hooking_loop(self):
         console_output(f"--- HALO 3 RANDOMIZER BY XERO | {datetime.now().strftime('%d%b%Y %H:%M:%S').upper()} ---")
